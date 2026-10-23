@@ -361,6 +361,12 @@ def ask_json(
 
     model = None
     if schema:
+        # Cache this path too: on a laptop the 7B model needs ~30 s per document
+        # and this is the only call the doctor-facing demo makes.
+        cache_key = _key("json", model_label(profile), str(temperature), prompt)
+        cache_path = _cache_path(cache_key)
+        if cache and LLM_CACHE_ENABLED and cache_path.exists():
+            return json.loads(cache_path.read_text(encoding="utf-8"))["data"]
         try:
             model = chat_model(profile, temperature if temperature is not None else 0.0)
             bound = model.bind(
@@ -370,7 +376,13 @@ def ask_json(
                 }
             )
             raw = _as_text(bound.invoke(f"{prompt}\n\nReturn only the JSON object."))
-            return parse_json(raw)  # type: ignore[return-value]
+            data = parse_json(raw)
+            if cache and LLM_CACHE_ENABLED and isinstance(data, dict):
+                cache_path.write_text(
+                    json.dumps({"model": model_label(profile), "data": data}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            return data  # type: ignore[return-value]
         except ModelUnavailable:
             raise
         except Exception as exc:  # noqa: BLE001 - fall through to prompt mode
