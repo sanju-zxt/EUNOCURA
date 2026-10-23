@@ -58,11 +58,13 @@ the optional Gemini fallback which is off by default.
 |---|---|---|---|---|
 | Extraction, intent, chat (default) | [`Qwen/Qwen2.5-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) | 7B | Apache-2.0 (OSI) | `OLLAMA_SLM_MODEL` |
 | Clinical reasoning (default) | [`google/medgemma-4b-it`](https://huggingface.co/google/medgemma-4b-it) | 4B | Health AI Developer Foundations terms — **open weights, not OSI** | `OLLAMA_MED_MODEL` |
-| Embeddings | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) | 22M | Apache-2.0 (OSI) | `pdf_rag.py` |
-| Optional cloud fallback | [`google/gemma-3-27b-it`](https://huggingface.co/google/gemma-3-27b-it) family via Gemini API | 27B | Gemma Terms of Use — **open weights, not OSI** | `LLM_PROVIDER=gemini` |
+| Embeddings (legacy, optional) | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) | 22M | Apache-2.0 (OSI) | `pdf_rag.py` only — installed via `requirements-optional.txt`, **not on the citation path** |
+| Optional cloud fallback | [`gemma-4-26b-a4b-it`](https://ai.google.dev/gemma) via the Gemini API | 26B (4B active) | Gemma Terms of Use — **open weights, not OSI** | `LLM_PROVIDER=gemini` |
 | Historical (not used by default) | [`m42-health/Llama3-Med42-70B`](https://huggingface.co/m42-health/Llama3-Med42-70B) | 70B | Llama 3 Community Licence + Med42 terms | replaced by the local `med` profile |
 
-**Licence honesty:** the code is MIT (`LICENSE`). The *models* are not all OSI — two of
+**Licence honesty.** Our code is **Apache-2.0** (`LICENSE`); the upstream files we forked
+stay under **MIT** (`LICENSE-MIT-upstream`), and `NOTICE` records that split. Both are on the
+OSI approved list (<https://opensource.org/licenses>). The *models* are not all OSI — two of
 them carry custom open-weight terms. Pulling a model means accepting its provider terms;
 EUNOCURA does not redistribute weights.
 
@@ -276,6 +278,15 @@ must be provable without a model in the loop.
 
 ## 11. Licence
 
-Our additions: **Apache-2.0** — see `LICENSE`. The upstream code we forked: **MIT**,
-preserved verbatim in `LICENSE-MIT-upstream` (MIT requires that notice to ship with
-every copy). Model weights keep their own licences (see §2).
+Both licences used here are on the OSI approved list
+(<https://opensource.org/licenses>).
+
+| Part | Licence | Where |
+|---|---|---|
+| Code we wrote — citation-or-drop, model router, audit trail, offline tests, deploy | **Apache-2.0** | `LICENSE` |
+| Upstream code we forked — FastAPI app, MongoDB models, React portal | **MIT** | `LICENSE-MIT-upstream` |
+| Model weights | their own terms, not distributed here | see §2 |
+
+The exact split, plus the upstream attribution MIT requires, is in `NOTICE`.
+Machine-readable: `frontend/package.json` declares `"license": "Apache-2.0"`,
+and files we wrote carry an `SPDX-License-Identifier: Apache-2.0` header.

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
 """Print a citation audit report the way a human needs to read it.
 
     python tools/show_audit.py <report.json>     # from a saved response

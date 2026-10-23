@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
 """Citation audit trail.
 
 Every time the model offers claims and the verifier rules on them, one document
