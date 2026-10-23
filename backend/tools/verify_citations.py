@@ -25,7 +25,7 @@ with PDF.open("rb") as handle:
     response = client.post(
         "/citations/audit",
         files={"file": (PDF.name, handle, "application/pdf")},
-        data={"question": "", "max_claims": "8"},
+        data={"question": "", "max_claims": "10"},
     )
 elapsed = round(time.time() - t, 1)
 print(f"\naudit -> {response.status_code} in {elapsed}s")
