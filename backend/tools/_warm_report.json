@@ -1,0 +1,165 @@
+{
+  "headline": "10 of 10 claims cite a line that exists (100%)",
+  "total": 10,
+  "supported": 10,
+  "dropped": 0,
+  "page_corrected": 0,
+  "coverage": 1.0,
+  "claims": [
+    {
+      "claim": "Patient admitted with fever, cough, and breathlessness for four days.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "Fever with cough and breathlessness for four days.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 60.11,
+        "x1": 431.49,
+        "y1": 283.17
+      },
+      "confidence": 0.0,
+      "kind": "history"
+    },
+    {
+      "claim": "Patient's blood pressure was 148/92 mmHg on admission.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "BP 148/92 mmHg, HR 104 bpm, SpO2 91% on room air, temperature 38.6 C.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 60.11,
+        "x1": 431.49,
+        "y1": 283.17
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's heart rate was 104 bpm on admission.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "BP 148/92 mmHg, HR 104 bpm, SpO2 91% on room air, temperature 38.6 C.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 60.11,
+        "x1": 431.49,
+        "y1": 283.17
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's SpO2 was 91% on room air on admission.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "BP 148/92 mmHg, HR 104 bpm, SpO2 91% on room air, temperature 38.6 C.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 60.11,
+        "x1": 431.49,
+        "y1": 283.17
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's SpO2 improved to 96% on 2 L/min oxygen by nasal prongs.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "After 2 L/min oxygen by nasal prongs: SpO2 96%, HR 98 bpm.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 287.67,
+        "x1": 426.24,
+        "y1": 467.28
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient had bilateral basal crepitations, right more than left.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "Bilateral basal crepitations, right more than left.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 287.67,
+        "x1": 426.24,
+        "y1": 467.28
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's HbA1c was 8.4%.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "HbA1c 8.4% (raised).",
+      "coords": {
+        "x0": 72.0,
+        "y0": 287.67,
+        "x1": 426.24,
+        "y1": 467.28
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's fasting plasma glucose was 168 mg/dL.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "Fasting plasma glucose 168 mg/dL.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 287.67,
+        "x1": 426.24,
+        "y1": 467.28
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient's serum creatinine was 1.1 mg/dL.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "Serum creatinine 1.1 mg/dL (within reference range).",
+      "coords": {
+        "x0": 72.0,
+        "y0": 287.67,
+        "x1": 426.24,
+        "y1": 467.28
+      },
+      "confidence": 0.0,
+      "kind": "finding|measurement"
+    },
+    {
+      "claim": "Patient was started on intravenous ceftriaxone 1 g twice daily.",
+      "status": "supported",
+      "reason": "line found on the cited page",
+      "page": 1,
+      "quote": "Started on intravenous ceftriaxone 1 g twice daily on 09 Aug 2026.",
+      "coords": {
+        "x0": 72.0,
+        "y0": 476.67,
+        "x1": 380.75,
+        "y1": 502.17
+      },
+      "confidence": 0.0,
+      "kind": "medication"
+    }
+  ],
+  "model": "ollama:qwen2.5:7b-instruct",
+  "offered": 10,
+  "filename": "sample-discharge-summary.pdf",
+  "page_count": 2,
+  "audit_id": "6adb2a1307efdc38b6f43ad0"
+}

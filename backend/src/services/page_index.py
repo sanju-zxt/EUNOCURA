@@ -12,7 +12,9 @@ Output shape is exactly what `services.citations.verify` expects:
     {"pages": {1: "page text", ...},
      "chunks": [{"page": 1, "text": "...", "coordinates": {"x0":..,"y0":..,"x1":..,"y1":..}}, ...]}
 
-`coordinates` are PDF points, origin bottom-left as pdfplumber reports them.
+`coordinates` are PDF points in bottom-left origin (x0=left, y0=bottom,
+x1=right, y1=top) — the convention `services/bbox.py` and the pdf.js viewer
+both use. pdfplumber reports top-left origin, so `_bbox` flips the y axis.
 """
 
 from __future__ import annotations
@@ -42,14 +44,20 @@ def _pdfplumber():
     return pdfplumber
 
 
-def _bbox(words: List[Dict[str, Any]]) -> Optional[Dict[str, float]]:
+def _bbox(words: List[Dict[str, Any]], page_height: float) -> Optional[Dict[str, float]]:
+    """Box in bottom-left PDF space, the convention the viewer and bbox.py use.
+
+    pdfplumber measures `top`/`bottom` from the top of the page. The frontend
+    converts with `viewport.convertToViewportRectangle`, which expects PDF
+    space, so the flip has to happen here or every highlight lands mirrored.
+    """
     if not words:
         return None
     return {
         "x0": round(min(w["x0"] for w in words), 2),
-        "y0": round(min(w["top"] for w in words), 2),
+        "y0": round(page_height - max(w["bottom"] for w in words), 2),
         "x1": round(max(w["x1"] for w in words), 2),
-        "y1": round(max(w["bottom"] for w in words), 2),
+        "y1": round(page_height - min(w["top"] for w in words), 2),
     }
 
 
@@ -70,7 +78,7 @@ def _line_text(row: List[Dict[str, Any]]) -> str:
     return _WS.sub(" ", " ".join(str(w.get("text", "")) for w in row)).strip()
 
 
-def _page_chunks(page_no: int, words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _page_chunks(page_no: int, words: List[Dict[str, Any]], page_height: float) -> List[Dict[str, Any]]:
     """Pack consecutive lines into chunks of at most MAX_CHUNK_CHARS."""
     chunks: List[Dict[str, Any]] = []
     pending: List[str] = []
@@ -80,7 +88,8 @@ def _page_chunks(page_no: int, words: List[Dict[str, Any]]) -> List[Dict[str, An
         text = " ".join(pending).strip()
         if not text:
             return
-        chunks.append({"page": page_no, "text": text, "coordinates": _bbox(pending_words)})
+        chunks.append({"page": page_no, "text": text,
+                       "coordinates": _bbox(pending_words, page_height)})
         pending.clear()
         pending_words.clear()
 
@@ -116,7 +125,7 @@ def index_pdf(path: Union[str, Path]) -> Dict[str, Any]:
                 except Exception:  # a broken page must not sink the document
                     words = []
                 pages[i] = _WS.sub(" ", " ".join(str(w.get("text", "")) for w in words)).strip()
-                chunks.extend(_page_chunks(i, words))
+                chunks.extend(_page_chunks(i, words, float(page.height)))
     except PageIndexUnavailable:
         raise
     except Exception as exc:
