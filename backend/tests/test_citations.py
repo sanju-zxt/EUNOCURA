@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
 """Offline tests for citation-or-drop. No API key, no model, no network.
 
     cd backend

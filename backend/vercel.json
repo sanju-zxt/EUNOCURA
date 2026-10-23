@@ -1,0 +1,20 @@
+﻿{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "index.py"
+    }
+  ],
+  "functions": {
+    "index.py": {
+      "excludeFiles": "{.venv/**,.cache/**,tests/**,demo/**,tools/**,scripts/**,data/**,storage/**,requirements-optional.txt}"
+    }
+  }
+}

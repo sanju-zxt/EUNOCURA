@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
 """Citation-or-drop.
 
 The rule this project is built on: **a claim survives only if a line it quotes
@@ -28,6 +31,12 @@ _QUOTES = {
     ord("\u2018"): "'", ord("\u2019"): "'", ord("\u201a"): "'", ord("\u2032"): "'",
     ord("\u201c"): '"', ord("\u201d"): '"', ord("\u201e"): '"', ord("\u2033"): '"',
 }
+
+# Typography is not evidence. A model that quotes "SpO2 91% on room air." when
+# the page says "SpO2 91% on room air," has quoted the line; a model that says
+# "patient is stable" has not. So we ignore punctuation at the *edges* of a
+# quote and nothing inside it — the words still have to be there, in order.
+_EDGE = " \t\r\n.,;:!?\"'()[]{}<>-–—·•*"
 
 
 def normalize(text: str) -> str:
@@ -212,7 +221,7 @@ def verify(
 
     for raw in claims:
         c = raw if isinstance(raw, Claim) else Claim.from_dict(raw)
-        quote_norm = normalize(c.quote)
+        quote_norm = normalize(c.quote).strip(_EDGE)
 
         if not c.claim:
             continue

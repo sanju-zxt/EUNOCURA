@@ -20,17 +20,23 @@ from src import db
 from src.config import PORT, PUBLIC_BASE_URL, STT_PROVIDER, UPLOAD_DIR
 from src.llm import router
 from src.r2 import storage_mode
+from src.routes.citations import router as citations_router
 from src.routes.root import router as root_router
+from src.services import audit_store
 
 APP_NAME = "EUNOCURA"
 VERSION = "2.0.0"
 
 app = FastAPI(title=APP_NAME, version=VERSION)
 
+
 _origins = os.getenv(
-    "FRONTEND_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:3001,http://127.0.0.1:3001,"
+    "http://localhost:5173,http://127.0.0.1:5173"
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins.split(",") if o.strip()],
@@ -38,6 +44,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Local storage fallback: uploaded documents are served from here when R2 is
 # not configured, so the PDF viewer works on a clean clone.
@@ -124,13 +131,18 @@ async def healthz():
         rag_reason = f"pdf_rag import failed: {exc}"
     embeddings = _has_module("faiss") and _has_module("sentence_transformers") and not rag_reason
 
+    citations_ready = _has_module("pdfplumber")
+
     checks = {
         "model": model["reachable"] or model["provider"] == "none",
         "mongo": mongo_reachable,
         "storage": True,  # local disk is always writable enough to boot
-        "embeddings": embeddings,
+        # The citation path is the demo path. A missing vector store is a
+        # design decision, not a fault, so it must not drag this to "degraded".
+        "citations": citations_ready,
     }
     status = "ok" if all(checks.values()) else "degraded"
+    audits_recorded = await _bounded(audit_store.count(), 1.5, None)
 
     return {
         "service": APP_NAME,
@@ -150,16 +162,23 @@ async def healthz():
             "hint": "" if storage_mode() == "r2" else "R2 not configured — files are stored locally.",
         },
         "stt": stt,
+        "citations": {
+            "pdf_reader": "pdfplumber" if _has_module("pdfplumber") else "missing",
+            "vector_store": "not used",
+            "audits_recorded": audits_recorded,
+            "rule": "a claim survives only if its quoted line exists on the cited page",
+        },
         "rag": {
-            "vector_store": "faiss" if _has_module("faiss") else "missing",
-            "embeddings_model": "sentence-transformers/all-MiniLM-L6-v2",
+            "role": "removed from the demo path — page text + quote matching replaced it",
+            "vector_store": "faiss" if _has_module("faiss") else "absent",
             "available": embeddings,
-            "hint": rag_reason if embeddings else (
-                rag_reason or "pip install faiss-cpu sentence-transformers torch"
-            ),
+            "hint": rag_reason,
         },
     }
 
 
 # All feature routers (auth, appointments, patients, doctors, ingest, chatbot).
 app.include_router(root_router)
+
+# Citation-or-drop: the evidence layer. Deterministic verification, no vectors.
+app.include_router(citations_router, prefix="/citations", tags=["citations"])

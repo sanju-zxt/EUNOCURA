@@ -14,6 +14,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
  * draws the exact bounding box the claim rests on, coloured by verdict:
  *   supported → emerald · page_corrected → amber · dropped → grey
  * Toggling the overlay off falls back to the older relaxed text-region view.
+ *
+ * CitationPanel mode: pass `highlight={{ page, coords: {x0,y0,x1,y1} }}` to draw a
+ * translucent yellow box on that page and scroll it into view.
  */
 const PDFViewer = ({
     pdfFile,
@@ -24,10 +27,12 @@ const PDFViewer = ({
     confidence,
     verification,
     onClose,
+    highlight,
 }) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
     const containerRef = useRef(null);
+    const highlightRef = useRef(null);
     const [pdf, setPdf] = useState(null);
     const [page, setPage] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -36,6 +41,20 @@ const PDFViewer = ({
     const [viewport, setViewport] = useState(null);
     const [textItems, setTextItems] = useState([]);
     const [showOverlay, setShowOverlay] = useState(true);
+
+    // Evidence highlight handed in from CitationPanel ("Jump to line").
+    // Only draw it when the requested page is the page currently rendered.
+    const highlightOnThisPage = !!highlight && !!highlight.coords &&
+        (!highlight.page || Number(highlight.page) === Number(pageNumber));
+
+    // Scroll the highlight into view once the page has been rendered.
+    useEffect(() => {
+        if (!highlightOnThisPage || !viewport) return;
+        const el = highlightRef.current;
+        if (el && typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+    }, [highlightOnThisPage, highlight, viewport, pageNumber]);
 
     // Load PDF document from File object
     useEffect(() => {
@@ -410,7 +429,8 @@ const PDFViewer = ({
     // Convert coordinates object to bbox array for the helper function
     // Coordinates from backend are in PDF space (bottom-left origin)
     // bbox format: [x0, y0, x1, y1] where y0 is bottom, y1 is top
-    const bbox = coordinates ? [coordinates.x0, coordinates.y0, coordinates.x1, coordinates.y1] : null;
+    const highlightCoords = (highlightOnThisPage ? highlight?.coords : null) || coordinates;
+    const bbox = highlightCoords ? [highlightCoords.x0, highlightCoords.y0, highlightCoords.x1, highlightCoords.y1] : null;
     
     // Debug logging
     useEffect(() => {
@@ -436,14 +456,47 @@ const PDFViewer = ({
 
     // Exact box in viewport space. Backend coordinates are bottom-left origin,
     // the viewport is top-left, so flip Y with the page height.
-    const overlayRect = showOverlay && bbox && viewport && pageHeight
+    const overlayRect = showOverlay && bbox && viewport && pageHeight && highlightCoords && !highlightOnThisPage
         ? {
-            left: coordinates.x0 * scale,
-            top: (pageHeight - coordinates.y1) * scale,
-            width: Math.max((coordinates.x1 - coordinates.x0) * scale, 4),
-            height: Math.max((coordinates.y1 - coordinates.y0) * scale, 4),
+            left: highlightCoords.x0 * scale,
+            top: (pageHeight - highlightCoords.y1) * scale,
+            width: Math.max((highlightCoords.x1 - highlightCoords.x0) * scale, 4),
+            height: Math.max((highlightCoords.y1 - highlightCoords.y0) * scale, 4),
         }
         : null;
+
+    // Highlight box requested by CitationPanel, in rendered-page pixels.
+    // pdf.js flips PDF space (bottom-left origin) into viewport space
+    // (top-left origin) for us; fall back to manual scaling if it refuses.
+    const highlightRect = (() => {
+        if (!highlightOnThisPage || !viewport || !page || !highlight?.coords) return null;
+        const c = highlight.coords;
+
+        let rect = null;
+        try {
+            if (typeof viewport.convertToViewportRectangle === 'function') {
+                rect = viewport.convertToViewportRectangle([c.x0, c.y0, c.x1, c.y1]);
+            }
+        } catch (err) {
+            rect = null;
+        }
+
+        if (Array.isArray(rect) && rect.length === 4 && rect.every((n) => Number.isFinite(n))) {
+            return {
+                left: Math.max(Math.min(rect[0], rect[2]), 0),
+                top: Math.max(Math.min(rect[1], rect[3]), 0),
+                width: Math.max(Math.abs(rect[2] - rect[0]), 6),
+                height: Math.max(Math.abs(rect[3] - rect[1]), 6),
+            };
+        }
+
+        return {
+            left: Math.max(c.x0 * scale, 0),
+            top: Math.max((pageHeight - c.y1) * scale, 0),
+            width: Math.max((c.x1 - c.x0) * scale, 6),
+            height: Math.max((c.y1 - c.y0) * scale, 6),
+        };
+    })();
 
     const verdict = verification?.status;
     const verdictColor = verdict === 'supported'
@@ -556,8 +609,25 @@ const PDFViewer = ({
                                 </div>
                             )}
 
+                            {/* Citation highlight requested by CitationPanel */}
+                            {highlightRect && (
+                                <div
+                                    ref={highlightRef}
+                                    className="absolute pointer-events-none border border-yellow-500 bg-yellow-300 rounded-sm"
+                                    style={{
+                                        left: `${highlightRect.left}px`,
+                                        top: `${highlightRect.top}px`,
+                                        width: `${highlightRect.width}px`,
+                                        height: `${highlightRect.height}px`,
+                                        opacity: 0.4,
+                                        mixBlendMode: 'multiply',
+                                    }}
+                                    title="Cited line"
+                                />
+                            )}
+
                             {/* Text layer for highlighting */}
-                            {textItems.length > 0 && coordinates && (
+                            {textItems.length > 0 && bbox && (
                                 <div
                                     ref={textLayerRef}
                                     className="absolute inset-0 pointer-events-none"

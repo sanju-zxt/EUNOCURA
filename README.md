@@ -16,6 +16,25 @@ otherwise                   →  dropped, with the reason printed
 
 ---
 
+## 0. Built on, and what we changed
+
+This is a fork. The upstream project is **EUNOCURA**, published as **MedAI**
+(<https://github.com/Prathameshworks247/MedAI>). It gave us the FastAPI app, the
+MongoDB models and the React doctor portal. Those files keep their original
+authorship and their MIT notice (`LICENSE-MIT-upstream`); `git log` shows the
+history we did not write.
+
+Our delta, in the order it matters:
+
+| # | Change | Where |
+|---|---|---|
+| 1 | **Citation-or-drop.** The model may only *offer* `{claim, quote, page}`; deterministic Python decides whether that line exists on that page. A wrong page is corrected, a missing line is dropped, and the drop is shown to the doctor. No model influences the verdict. | `backend/src/services/citations.py` |
+| 2 | **19 offline tests** for the verifier — no model, no network, runs at a venue whose wifi does not work. | `backend/tests/test_citations.py` |
+| 3 | **Replaced the dead model.** Upstream pinned `gemini-2.0-flash-exp`, which Google has shut down, so the diagnosis path was already broken. One router: open weights by default (Ollama), Gemma 4 optional, `none` for deterministic-only. | `backend/src/llm/router.py` |
+| 4 | **Deleted the embedding stack from the demo path.** `faiss-cpu`, `sentence-transformers` and `torch` moved to `requirements-optional.txt`: ~2.5 GB → under 300 MB. Verification got *more* exact, because page text answers "is this line on that page" better than cosine similarity does. | `backend/requirements.txt` |
+| 5 | **Audit trail.** Every audit — including rejected claims and the reason for rejection — is written to `citation_audits` in MongoDB. | `backend/src/services/audit_store.py` |
+| 6 | **Deployable.** Container plus a DigitalOcean App Platform spec (BLR1) for the API and the static site. | `backend/Dockerfile`, `.do/app.yaml`, `docker-compose.yml` |
+
 ## 1. The rule the project is built on
 
 > **Citation-or-drop.** A claim survives only if a line it quotes actually exists on
@@ -40,11 +59,13 @@ the optional Gemini fallback which is off by default.
 |---|---|---|---|---|
 | Extraction, intent, chat (default) | [`Qwen/Qwen2.5-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) | 7B | Apache-2.0 (OSI) | `OLLAMA_SLM_MODEL` |
 | Clinical reasoning (default) | [`google/medgemma-4b-it`](https://huggingface.co/google/medgemma-4b-it) | 4B | Health AI Developer Foundations terms — **open weights, not OSI** | `OLLAMA_MED_MODEL` |
-| Embeddings | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) | 22M | Apache-2.0 (OSI) | `pdf_rag.py` |
-| Optional cloud fallback | [`google/gemma-3-27b-it`](https://huggingface.co/google/gemma-3-27b-it) family via Gemini API | 27B | Gemma Terms of Use — **open weights, not OSI** | `LLM_PROVIDER=gemini` |
+| Embeddings (legacy, optional) | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) | 22M | Apache-2.0 (OSI) | `pdf_rag.py` only — installed via `requirements-optional.txt`, **not on the citation path** |
+| Optional cloud fallback | [`gemma-4-26b-a4b-it`](https://ai.google.dev/gemma) via the Gemini API | 26B (4B active) | Gemma Terms of Use — **open weights, not OSI** | `LLM_PROVIDER=gemini` |
 | Historical (not used by default) | [`m42-health/Llama3-Med42-70B`](https://huggingface.co/m42-health/Llama3-Med42-70B) | 70B | Llama 3 Community Licence + Med42 terms | replaced by the local `med` profile |
 
-**Licence honesty:** the code is MIT (`LICENSE`). The *models* are not all OSI — two of
+**Licence honesty.** Our code is **Apache-2.0** (`LICENSE`); the upstream files we forked
+stay under **MIT** (`LICENSE-MIT-upstream`), and `NOTICE` records that split. Both are on the
+OSI approved list (<https://opensource.org/licenses>). The *models* are not all OSI — two of
 them carry custom open-weight terms. Pulling a model means accepting its provider terms;
 EUNOCURA does not redistribute weights.
 
@@ -119,7 +140,7 @@ in the UI.
 | Document extraction | pdfplumber → model → structured clinical JSON → MongoDB |
 | **Citation verification** | `services/citations.py` — claim kept only if its quote exists on the cited page; wrong-page claims corrected; the rest dropped |
 | **Exact highlight boxes** | chunk → character span → union of pdfplumber word rects (`services/bbox.py`). No ±50 pt guessing |
-| Document RAG | FAISS + MiniLM embeddings, per-document index |
+| Document RAG (legacy, optional) | FAISS + MiniLM embeddings, per-document index. Installed only via `requirements-optional.txt`; **not used by the citation path** |
 | AI diagnosis | `med` profile over patient context, differential with confidence |
 | Patient chatbot | `slm` profile, 12 Indic languages, optional voice |
 | Speech-to-text | local faster-whisper; text-only degrade if absent |
@@ -258,4 +279,15 @@ must be provable without a model in the loop.
 
 ## 11. Licence
 
-MIT — see `LICENSE`. Model weights retain their own licences (see §2).
+Both licences used here are on the OSI approved list
+(<https://opensource.org/licenses>).
+
+| Part | Licence | Where |
+|---|---|---|
+| Code we wrote — citation-or-drop, model router, audit trail, offline tests, deploy | **Apache-2.0** | `LICENSE` |
+| Upstream code we forked — FastAPI app, MongoDB models, React portal | **MIT** | `LICENSE-MIT-upstream` |
+| Model weights | their own terms, not distributed here | see §2 |
+
+The exact split, plus the upstream attribution MIT requires, is in `NOTICE`.
+Machine-readable: `frontend/package.json` declares `"license": "Apache-2.0"`,
+and files we wrote carry an `SPDX-License-Identifier: Apache-2.0` header.

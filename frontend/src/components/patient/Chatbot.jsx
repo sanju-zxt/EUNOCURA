@@ -26,6 +26,8 @@ const Chatbot = () => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
     ]);
+    const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081';
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('en-IN');

@@ -96,7 +96,7 @@ PLAN:
 
 export const testResults = [
   {
-    date: "2025-10-15",
+    date: "2026-10-15",
     WBC: 7.2,
     RBC: 4.8,
     HB: 13.5,
@@ -106,7 +106,7 @@ export const testResults = [
     Triglycerides: 180
   },
   {
-    date: "2025-08-20",
+    date: "2026-08-20",
     WBC: 7.5,
     RBC: 4.9,
     HB: 13.8,
@@ -116,7 +116,7 @@ export const testResults = [
     Triglycerides: 175
   },
   {
-    date: "2025-06-10",
+    date: "2026-06-10",
     WBC: 7.8,
     RBC: 5.0,
     HB: 14.0,
@@ -126,7 +126,7 @@ export const testResults = [
     Triglycerides: 170
   },
   {
-    date: "2025-04-05",
+    date: "2026-04-05",
     WBC: 8.0,
     RBC: 5.1,
     HB: 14.2,
@@ -136,7 +136,7 @@ export const testResults = [
     Triglycerides: 165
   },
   {
-    date: "2025-02-15",
+    date: "2026-02-15",
     WBC: 7.9,
     RBC: 5.0,
     HB: 14.1,
@@ -275,7 +275,7 @@ export const chatbotFAQs = [
   },
   {
     question: "When is my next appointment?",
-    answer: "Your next follow-up appointment is scheduled for November 8, 2025 at 10:00 AM with Dr. Priya Mehta. Please bring your medication list and any questions you have."
+    answer: "Your next follow-up appointment is scheduled for November 8, 2026 at 10:00 AM with Dr. Priya Mehta. Please bring your medication list and any questions you have."
   },
   {
     question: "Are there any side effects I should watch for?",
