@@ -6,8 +6,6 @@ import uuid
 import os
 import shutil
 import json
-import re
-from pathlib import Path
 
 from src.db import user_collection, chat_history_collection
 from datetime import datetime
@@ -17,84 +15,9 @@ from src.services.chatbot_intent import classify_intent
 from src.services.chatbot_context import build_chatbot_context, verify_doctor_patient_access
 from src.services.chatbot_prompts import build_chatbot_prompt_async
 from src.services.pdf_rag import pdf_rag_service, FAISS_AVAILABLE
-from src.services import page_index
 from src.llm.featherless import llm
 
 router = APIRouter()
-
-
-MAX_DOCTOR_PDF_BYTES = 25 * 1024 * 1024
-
-
-def _pdf_storage_dir() -> Path:
-    """Return the same persistent PDF directory used by the existing routes."""
-    directory = Path(__file__).resolve().parents[2] / "storage" / "pdfs"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
-
-
-def _fallback_pdf_search(document_id: str, question: str, limit: int = 5) -> list[dict]:
-    """Retrieve indexed PDF chunks using lexical overlap, without torch or FAISS."""
-    # Restrict IDs to UUID-like safe filename characters; never accept path segments.
-    if not document_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", document_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid PDF document ID.",
-        )
-
-    storage_dir = _pdf_storage_dir()
-    pdf_path = storage_dir / f"{document_id}.pdf"
-    index_path = storage_dir / f"{document_id}.index.json"
-
-    if not pdf_path.is_file() or not index_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="PDF or its text index was not found. Please upload the PDF again.",
-        )
-
-    try:
-        with index_path.open("r", encoding="utf-8") as handle:
-            indexed = json.load(handle)
-    except (OSError, json.JSONDecodeError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The stored PDF text index could not be read.",
-        ) from exc
-
-    stop_words = {
-        "a", "an", "and", "are", "as", "at", "be", "by", "can", "could",
-        "did", "do", "does", "for", "from", "give", "has", "have", "how",
-        "i", "in", "is", "it", "me", "of", "on", "or", "please", "show",
-        "tell", "that", "the", "this", "to", "was", "what", "when",
-        "where", "which", "who", "why", "with", "would", "you", "your",
-    }
-    terms = {
-        token for token in re.findall(r"[a-zA-Z0-9]+", question.lower())
-        if len(token) > 1 and token not in stop_words
-    }
-    if not terms:
-        return []
-
-    ranked = []
-    for chunk in indexed.get("chunks", []):
-        text = str(chunk.get("text", ""))
-        chunk_terms = set(re.findall(r"[a-zA-Z0-9]+", text.lower()))
-        matched = terms.intersection(chunk_terms)
-        if not matched:
-            continue
-
-        # Ranking is lexical overlap, not semantic similarity.
-        score = len(matched) / max(len(terms), 1)
-        ranked.append({
-            "page_number": int(chunk.get("page", 1)),
-            "coordinates": chunk.get("coordinates"),
-            "text": text,
-            "score": round(score, 4),
-            "matched_terms": sorted(matched),
-        })
-
-    ranked.sort(key=lambda item: item["score"], reverse=True)
-    return ranked[:max(1, min(int(limit), 10))]
 
 
 # Request/Response Models
@@ -229,64 +152,47 @@ async def doctor_chat(
         context = None  # Initialize context variable
         
         if request.pdf_document_id:
-            # PDF-only context: prefer FAISS when initialized, otherwise use text index.
-            document_id = request.pdf_document_id
-            print(f"📄 Using PDF context from document: {document_id}")
+            # Use PDF context only
+            if pdf_rag_service is None:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="PDF RAG service is not available. Please install required dependencies: faiss-cpu, langchain-community"
+                )
+            
+            print(f"📄 Using PDF context from document: {request.pdf_document_id}")
             try:
-                if pdf_rag_service is not None:
-                    search_results = await pdf_rag_service.search(
-                        document_id=document_id,
-                        query=question,
-                        k=5,
-                    )
-                else:
-                    search_results = _fallback_pdf_search(
-                        document_id=document_id,
-                        question=question,
-                        limit=5,
-                    )
-
-                if not search_results:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=(
-                            "No matching text was found in this PDF for your question. "
-                            "Try using specific terms from the document."
-                        ),
-                    )
-
+                search_results = await pdf_rag_service.search(
+                    document_id=request.pdf_document_id,
+                    query=question,
+                    k=5
+                )
+                
+                # Build context from PDF search results
                 pdf_context = {
-                    "pdf_document_id": document_id,
-                    "relevant_chunks": search_results,
-                    "retrieval_method": (
-                        "faiss" if pdf_rag_service is not None else "keyword_fallback"
-                    ),
+                    "pdf_document_id": request.pdf_document_id,
+                    "relevant_chunks": search_results
                 }
-
+                
+                # Extract citations
                 citations = [
                     {
-                        "document_id": document_id,
-                        "page_number": int(result.get("page_number", result.get("page", 1))),
-                        "coordinates": result.get("coordinates"),
-                        "text_preview": (
-                            result.get("text", "")[:200] + "..."
-                            if len(result.get("text", "")) > 200
-                            else result.get("text", "")
-                        ),
-                        "text": result.get("text", ""),
-                        "score": result.get("score", 0),
+                        "document_id": request.pdf_document_id,
+                        "page_number": result["page_number"],
+                        "coordinates": result["coordinates"],
+                        "text_preview": result["text"][:200] + "..." if len(result["text"]) > 200 else result["text"],
+                        "text": result["text"],  # Include full text for accurate highlighting
+                        "score": result["score"]
                     }
                     for result in search_results
                 ]
-                print(f"✅ Found {len(search_results)} relevant PDF chunks")
-            except HTTPException:
-                raise
+                
+                print(f"✅ Found {len(search_results)} relevant chunks from PDF")
             except Exception as e:
                 print(f"⚠️ Error searching PDF: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Error searching PDF: {str(e)}",
-                ) from e
+                    detail=f"Error searching PDF: {str(e)}"
+                )
         else:
             # Use MongoDB context
             print(f"📊 Building context for intent: {intent}")
@@ -448,95 +354,77 @@ async def doctor_chat(
 @router.post("/upload-pdf", response_model=PDFUploadResponse)
 async def upload_pdf_for_chat(
     file: UploadFile = File(...),
-    doctor: dict = Depends(check_doctor_exists),
+    doctor: dict = Depends(check_doctor_exists)
 ):
-    """Save and process a PDF, using a no-embedding index if RAG is unavailable."""
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are supported",
-        )
-
-    document_id = str(uuid.uuid4())
-    storage_dir = _pdf_storage_dir()
-    file_path = storage_dir / f"{document_id}.pdf"
-    index_path = storage_dir / f"{document_id}.index.json"
-
+    """
+    Upload a PDF file for chatbot context.
+    The PDF will be processed, chunked with coordinates, and stored in FAISS vector store.
+    The file will be saved to disk for later access.
+    When a PDF document_id is provided in chat requests, only this PDF's context will be used.
+    """
     try:
-        content = await file.read(MAX_DOCTOR_PDF_BYTES + 1)
-        if len(content) > MAX_DOCTOR_PDF_BYTES:
+        if pdf_rag_service is None:
+            # Check if it's an import issue or initialization issue
+            if not FAISS_AVAILABLE:
+                error_msg = "PDF RAG service is not available. Dependencies not installed. Please run: pip install faiss-cpu langchain-community sentence-transformers torch"
+            else:
+                error_msg = "PDF RAG service failed to initialize. Check server startup logs for details. Common causes: missing sentence-transformers package or model download failure. Install with: pip install sentence-transformers torch"
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="PDF is larger than 25 MB",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=error_msg
             )
-        if not content.startswith(b"%PDF-"):
+        
+        # Validate file type
+        if not file.filename or not file.filename.endswith('.pdf'):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="The uploaded file does not appear to be a valid PDF.",
+                detail="Only PDF files are supported"
             )
-
-        file_path.write_bytes(content)
-
-        if pdf_rag_service is not None:
-            await file.seek(0)
-            result = await pdf_rag_service.process_pdf(file, document_id)
-            return PDFUploadResponse(
-                document_id=document_id,
-                file_name=file.filename,
-                file_path=f"storage/pdfs/{document_id}.pdf",
-                total_chunks=int(result["total_chunks"]),
-                total_pages=int(result["total_pages"]),
-                status=result.get("status", "processed"),
-            )
-
-        # Lightweight route: pdfplumber extraction + persistent JSON index.
-        indexed = page_index.index_pdf(file_path)
-        if indexed.get("char_count", 0) <= 0 or not indexed.get("chunks"):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "No selectable text could be extracted from this PDF. "
-                    "If it is scanned, OCR is required before asking questions."
-                ),
-            )
-
-        # Write atomically so chat requests never read a partial index.
-        temp_index = index_path.with_suffix(".index.json.tmp")
-        temp_index.write_text(
-            json.dumps(indexed, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        temp_index.replace(index_path)
-
-        print(
-            f"✅ PDF indexed without embeddings: {indexed['page_count']} pages, "
-            f"{len(indexed['chunks'])} chunks"
-        )
+        
+        # Generate unique document ID
+        document_id = str(uuid.uuid4())
+        
+        # Create storage directory if it doesn't exist
+        storage_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "storage", "pdfs")
+        os.makedirs(storage_dir, exist_ok=True)
+        
+        # Save file to disk
+        file_path = os.path.join(storage_dir, f"{document_id}.pdf")
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Reset file pointer for processing
+        await file.seek(0)
+        
+        # Process PDF
+        print(f"📄 Processing PDF: {file.filename}")
+        result = await pdf_rag_service.process_pdf(file, document_id)
+        
+        print(f"✅ PDF processed: {result['total_chunks']} chunks from {result['total_pages']} pages, saved to {file_path}")
+        
+        # Return relative path for API access
+        relative_path = f"storage/pdfs/{document_id}.pdf"
+        
         return PDFUploadResponse(
             document_id=document_id,
-            file_name=file.filename,
-            file_path=f"storage/pdfs/{document_id}.pdf",
-            total_chunks=len(indexed["chunks"]),
-            total_pages=int(indexed["page_count"]),
-            status="processed_text_fallback",
+            file_name=file.filename or "unknown.pdf",
+            file_path=relative_path,
+            total_chunks=result['total_chunks'],
+            total_pages=result['total_pages'],
+            status=result['status']
         )
-
+        
     except HTTPException:
-        file_path.unlink(missing_ok=True)
-        index_path.unlink(missing_ok=True)
         raise
     except Exception as e:
-        file_path.unlink(missing_ok=True)
-        index_path.unlink(missing_ok=True)
-        print(f"❌ Error uploading/indexing PDF: {e}")
+        print(f"❌ Error uploading PDF: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Failed to process PDF: {str(e)}",
-        ) from e
-    finally:
-        await file.close()
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process PDF: {str(e)}"
+        )
 
 
 @router.post("/chat/history", response_model=ChatHistoryResponse)
