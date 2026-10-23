@@ -1,5 +1,4 @@
 # EUNOCURA
-
 **An open-weight AI harness for trustworthy clinical intelligence..**
 
 Point it at a medical PDF. It extracts structured clinical facts, answers questions
