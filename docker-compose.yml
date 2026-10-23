@@ -1,0 +1,52 @@
+# Local full stack: MongoDB + the API. The frontend is easiest to run with Vite
+# (`cd frontend && npm run dev`) against http://localhost:8000.
+#
+#   docker compose up --build
+#
+# Ollama is reached on the *host*, so the container uses host.docker.internal.
+# On Linux add: extra_hosts: ["host.docker.internal:host-gateway"]
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: eunocura-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+    container_name: eunocura-api
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/InterIIIT
+      # Local open weights on the host. Use gemini + GEMINI_API_KEY instead if
+      # you have no Ollama server.
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_SLM_MODEL: ${OLLAMA_SLM_MODEL:-qwen2.5:7b-instruct}
+      OLLAMA_MED_MODEL: ${OLLAMA_MED_MODEL:-qwen2.5:7b-instruct}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemma-4-26b-a4b-it}
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me}
+      LLM_CACHE_ENABLED: "1"
+      FRONTEND_ORIGINS: http://localhost:3000,http://localhost:5173
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - api-data:/app/data
+
+volumes:
+  mongo-data:
+  api-data:

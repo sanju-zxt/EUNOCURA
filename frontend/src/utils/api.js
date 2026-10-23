@@ -78,6 +78,60 @@ export const apiRequest = async (endpoint, options = {}) => {
 };
 
 /**
+ * Citation audit API function
+ */
+export const auditCitations = async (file, question = '') => {
+  const token = getToken();
+  const url = `${API_BASE_URL}/citations/audit`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  if (question) {
+    formData.append('question', question);
+  }
+
+  const headers = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      headers: headers,
+    });
+
+    const contentType = response.headers.get('content-type');
+    let data;
+
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = { detail: text || `HTTP error! status: ${response.status}` };
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      return {
+        success: false,
+        error: 'Network error. Please check if the backend server is running.',
+      };
+    }
+    return {
+      success: false,
+      error: error.message || 'An error occurred while making the request',
+    };
+  }
+};
+
+/**
  * Auth API functions
  */
 export const authAPI = {

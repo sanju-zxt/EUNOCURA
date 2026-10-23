@@ -1,54 +1,55 @@
-# EUNOCURA backend — pip install -r requirements.txt
-# Everything below is OSI-licensed except the optional cloud SDKs, which are
-# only imported when you explicitly opt into a cloud provider.
+# EUNOCURA backend — the demo path, pinned to what was actually tested.
+#
+# Pinned on purpose: the deployment (backend/Dockerfile, .do/app.yaml) must
+# install the same versions this machine ran green, not whatever is newest at
+# build time. Bump deliberately, then re-run `python tests/test_citations.py`.
+#
+# WHAT IS NOT HERE, AND WHY
+# -------------------------
+# torch, faiss-cpu, sentence-transformers, tiktoken and langchain-community used
+# to be installed to support a vector store. The citation path does not use one:
+# page text from pdfplumber plus literal quote matching answers "is this line on
+# that page" exactly, and can be tested offline with no model at all. Removing
+# the embedding stack cut install size from ~2.5 GB to well under 300 MB and made
+# the verification step deterministic.
+#
+# They remain available for the legacy RAG module: requirements-optional.txt
+#
+# Speech (faster-whisper / pyttsx3 / pydub) is also optional. Without it the app
+# runs in text-only mode and says so on /healthz.
 
 # --- web
-fastapi[standard]
-uvicorn[standard]
-python-multipart
+fastapi[standard]==0.111.0
+uvicorn==0.30.0
+python-multipart==0.0.9
 
 # --- data
-pymongo
-python-dotenv
-pydantic
-email-validator
+pymongo==4.19.0
+python-dotenv==1.2.4
+pydantic==2.14.1
+email-validator==2.3.0
 
 # --- open-weight model transport (Ollama is OpenAI-compatible)
-langchain
-langchain-core
-langchain-community
-langchain-openai
-openai
+langchain==1.4.7
+langchain-core==1.7.0
+langchain-openai==1.7.2
+openai==3.37.0
 # only needed when LLM_PROVIDER=gemini
-langchain-google-genai
+langchain-google-genai==4.4.2
 
-# --- document intelligence
-pdfplumber
-PyPDF2
-pymupdf
-pytesseract
-Pillow
-faiss-cpu
-sentence-transformers
-torch
-tiktoken
+# --- document intelligence: page text + line boxes, no vectors
+pdfplumber==0.11.10
+PyPDF2==3.0.1
+pymupdf==1.28.2
+Pillow==12.3.0
 
-# --- clinical language pipeline
-# (no proprietary model SDKs: the answer path is fully local)
-
-# --- speech (local only: faster-whisper STT + pyttsx3 TTS)
-# Remove these two lines to run in text-only mode; nothing else breaks.
-faster-whisper
-pyttsx3
-pydub
-
-# --- storage
-boto3
+# --- storage (optional cloud bucket; local disk is the default)
+boto3==1.43.118
 
 # --- auth / util
-pyjwt
-pwdlib[argon2]
-requests
-httpx
-websockets
-certifi
+pyjwt==2.14.0
+pwdlib[argon2]==0.3.1
+requests==2.32.3
+httpx==0.28.1
+websockets==16.1.1
+certifi==2024.6.2

@@ -29,3 +29,10 @@ data/uploads/
 
 # local runtime (downloaded mongod, model caches)
 .local/
+
+# model response cache (demo replay aid, machine-specific)
+.cache/
+backend/.cache/
+
+# scratch output from tools/ probes
+backend/tools/_last_audit.json

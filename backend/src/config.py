@@ -23,7 +23,7 @@ OLLAMA_SLM_MODEL = os.getenv('OLLAMA_SLM_MODEL', 'qwen2.5:7b-instruct')
 OLLAMA_MED_MODEL = os.getenv('OLLAMA_MED_MODEL', 'medgemma:4b')
 
 # Optional cloud fallback. Never required to boot.
-GEMMA_MODEL = os.getenv('GEMMA_MODEL', 'gemma-4-31b-it')
+GEMMA_MODEL = os.getenv('GEMMA_MODEL', 'gemma-4-26b-a4b-it')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', GEMMA_MODEL)
 
 # Every model call is cached on disk. The demo replays from cache when the
