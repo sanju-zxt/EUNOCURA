@@ -27,7 +27,7 @@ const Chatbot = () => {
         }
     ]);
     const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081';
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
@@ -81,7 +81,7 @@ const Chatbot = () => {
 
         try {
             // Call backend API for text chat
-            const response = await fetch('http://localhost:8000/chatbot/text', {
+            const response = await fetch(`${API_BASE_URL}/chatbot/text`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ const Chatbot = () => {
             console.log('  - source_language:', selectedLanguage);
             console.log('  - target_language:', selectedLanguage);
 
-            const response = await fetch('http://localhost:8000/chatbot/voice', {
+            const response = await fetch(`${API_BASE_URL}/chatbot/voice`, {
                 method: 'POST',
                 body: formData
             });
@@ -268,7 +268,7 @@ const Chatbot = () => {
             }
 
             // Use backend endpoint for TTS
-            const response = await fetch('http://localhost:8000/chatbot/speak', {
+            const response = await fetch(`${API_BASE_URL}/chatbot/speak`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
