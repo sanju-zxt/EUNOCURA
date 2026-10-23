@@ -16,6 +16,25 @@ otherwise                   →  dropped, with the reason printed
 
 ---
 
+## 0. Built on, and what we changed
+
+This is a fork. The upstream project is **EUNOCURA**, published as **MedAI**
+(<https://github.com/Prathameshworks247/MedAI>). It gave us the FastAPI app, the
+MongoDB models and the React doctor portal. Those files keep their original
+authorship and their MIT notice (`LICENSE-MIT-upstream`); `git log` shows the
+history we did not write.
+
+Our delta, in the order it matters:
+
+| # | Change | Where |
+|---|---|---|
+| 1 | **Citation-or-drop.** The model may only *offer* `{claim, quote, page}`; deterministic Python decides whether that line exists on that page. A wrong page is corrected, a missing line is dropped, and the drop is shown to the doctor. No model influences the verdict. | `backend/src/services/citations.py` |
+| 2 | **19 offline tests** for the verifier — no model, no network, runs at a venue whose wifi does not work. | `backend/tests/test_citations.py` |
+| 3 | **Replaced the dead model.** Upstream pinned `gemini-2.0-flash-exp`, which Google has shut down, so the diagnosis path was already broken. One router: open weights by default (Ollama), Gemma 4 optional, `none` for deterministic-only. | `backend/src/llm/router.py` |
+| 4 | **Deleted the embedding stack from the demo path.** `faiss-cpu`, `sentence-transformers` and `torch` moved to `requirements-optional.txt`: ~2.5 GB → under 300 MB. Verification got *more* exact, because page text answers "is this line on that page" better than cosine similarity does. | `backend/requirements.txt` |
+| 5 | **Audit trail.** Every audit — including rejected claims and the reason for rejection — is written to `citation_audits` in MongoDB. | `backend/src/services/audit_store.py` |
+| 6 | **Deployable.** Container plus a DigitalOcean App Platform spec (BLR1) for the API and the static site. | `backend/Dockerfile`, `.do/app.yaml`, `docker-compose.yml` |
+
 ## 1. The rule the project is built on
 
 > **Citation-or-drop.** A claim survives only if a line it quotes actually exists on
@@ -119,7 +138,7 @@ in the UI.
 | Document extraction | pdfplumber → model → structured clinical JSON → MongoDB |
 | **Citation verification** | `services/citations.py` — claim kept only if its quote exists on the cited page; wrong-page claims corrected; the rest dropped |
 | **Exact highlight boxes** | chunk → character span → union of pdfplumber word rects (`services/bbox.py`). No ±50 pt guessing |
-| Document RAG | FAISS + MiniLM embeddings, per-document index |
+| Document RAG (legacy, optional) | FAISS + MiniLM embeddings, per-document index. Installed only via `requirements-optional.txt`; **not used by the citation path** |
 | AI diagnosis | `med` profile over patient context, differential with confidence |
 | Patient chatbot | `slm` profile, 12 Indic languages, optional voice |
 | Speech-to-text | local faster-whisper; text-only degrade if absent |
@@ -258,4 +277,6 @@ must be provable without a model in the loop.
 
 ## 11. Licence
 
-MIT — see `LICENSE`. Model weights retain their own licences (see §2).
+Our additions: **Apache-2.0** — see `LICENSE`. The upstream code we forked: **MIT**,
+preserved verbatim in `LICENSE-MIT-upstream` (MIT requires that notice to ship with
+every copy). Model weights keep their own licences (see §2).

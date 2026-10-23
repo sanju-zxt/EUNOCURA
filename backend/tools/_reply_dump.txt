@@ -1,0 +1,222 @@
+
+*   Input: A two-page medical discharge summary for Asha Rao.
+*   Task: List 5 factual claims a doctor would want.
+*   Requirements for each claim:
+    *   A description of the claim.
+    *   An exact quote from the text.
+    *   The page number.
+*   Output Format: JSON only: `{"claims":[{"claim":"..","quote":"..","page":1}]}`.
+
+    *   *Page 1:*
+        *   Patient: Asha Rao, 54F.
+        *   Admission: 09 Aug 2026.
+        *   Reason: Fever, cough, breathlessness.
+        *   Vitals: BP 148/92, HR 104, SpO2 91% (room air), Temp 38.6 C.
+        *   Oxygen effect: 2 L/min -> SpO2 96%, HR 98.
+        *   Exam: Bilateral basal crepitations (R > L), no pedal oedema.
+        *   Labs: HbA1c 8.4% (raised), Fasting glucose 168 mg/dL, Creatinine 1.1 mg/dL, TLC 14,200 (raised).
+        *   Imaging: Chest radiograph: right lower zone consolidation consistent with pneumonia.
+        *   Treatment: IV ceftriaxone 1g BID (started 09 Aug).
+        *   Progress: Afebrile from 10 Aug, Oxygen off 11 Aug.
+
+    *   *Page 2:*
+        *   Meds: Inj ceftriaxone 1g IV BID (5 days), Tab paracetamol 650mg oral q8h PRN, Tab metformin 500mg oral BID.
+        *   Diagnosis: Right lower zone consolidation consistent with pneumonia; Type 2 diabetes mellitus, suboptimally controlled.
+        *   Follow-up: Medicine OPD in 1 week (with CBC/creatinine); Chest X-ray in 6 weeks.
+        *   Warning signs: Breathlessness, fever > 38 C, SpO2 < 92%.
+        *   Discharge condition: Afebrile 48h, SpO2 96% (room air), ambulating independently.
+
+    *   Claim 1: Diagnosis of pneumonia.
+        *   Quote: "Right lower zone consolidation consistent with pneumonia."
+        *   Page: 1 (or 2, but it's on 1 under investigations and 2 under diagnosis). Let's use the one on page 1 under investigations or page 2 under diagnosis. Page 2 is more definitive for "Diagnosis".
+    *   Claim 2: HbA1c level (diabetes status).
+        *   Quote: "HbA1c 8.4% (raised)."
+        *   Page: 1.
+    *   Claim 3: Discharge medications.
+        *   Quote: "Inj ceftriaxone 1 g intravenous twice daily for 5 days."
+        *   Page: 2.
+    *   Claim 4: Vital signs on admission (specifically SpO2).
+        *   Quote: "SpO2 91% on room air"
+        *   Page: 1.
+    *   Claim 5: Follow-up instructions.
+        *   Quote: "Review in medicine OPD after 1 week with repeat CBC and creatinine."
+        *   Page: 2.
+
+    *   *Claim 1:* The patient has pneumonia.
+        *   Quote: "Right lower zone consolidation consistent with pneumonia."
+        *   Page: 1 (or 2). Let's use page 2 for the diagnosis section.
+    *   *Claim 2:* The patient's HbA1c is elevated.
+        *   Quote: "HbA1c 8.4% (raised)."
+        *   Page: 1.
+    *   *Claim 3:* The patient is being discharged on ceftriaxone.
+        *   Quote: "Inj ceftriaxone 1 g intravenous twice daily for 5 days."
+        *   Page: 2.
+    *   *Claim 4:* The patient's admission SpO2 was low.
+        *   Quote: "SpO2 91% on room air"
+        *   Page: 1.
+    *   *Claim 5:* The patient needs a follow-up chest radiograph in 6 weeks.
+        *   Quote: "Repeat chest radiograph in 6 weeks."
+        *   Page: 2.
+
+    *   5 claims? Yes.
+    *   Factual claims a doctor would want? Yes (Diagnosis, Labs, Meds, Vitals, Follow-up).
+    *   Quote copied exactly?
+        *   "Right lower zone consolidation consistent with pneumonia." (Matches page 2 diagnosis)
+        *   "HbA1c 8.4% (raised)." (Matches page 1)
+        *   "Inj ceftriaxone 1 g intravenous twice daily for 5 days." (Matches page 2)
+        *   "SpO2 91% on room air" (Matches page 1)
+        *   "Repeat chest radiograph in 6 weeks." (Matches page 2)
+    *   Page number included? Yes.
+    *   JSON format only? Yes.
+
+    *Self-Correction during drafting:* I'll ensure the quotes are exactly as they appear, including punctuation.
+
+    *Claim 1:* Diagnosis of pneumonia. Quote: "Right lower zone consolidation consistent with pneumonia." Page: 2.
+    *Claim 2:* Elevated HbA1c. Quote: "HbA1c 8.4% (raised)." Page: 1.
+    *Claim 3:* Discharge medication for infection. Quote: "Inj ceftriaxone 1 g intravenous twice daily for 5 days." Page: 2.
+    *Claim 4:* Admission oxygen saturation. Quote: "SpO2 91% on room air" Page: 1.
+    *Claim 5:* Follow-up requirement. Quote: "Review in medicine OPD after 1 week with repeat CBC and creatinine." Page: 2.
+
+    *Wait, let's check the quote for SpO2 on page 1:* "SpO2 91% on room air, temperature 38.6 C."
+    The prompt asks for a quote copied exactly. I will use "SpO2 91% on room air" as it is a substring of the sentence.
+
+    *Let's check the HbA1c quote:* "HbA1c 8.4% (raised)." (Matches exactly).
+
+    *Let's check the ceftriaxone quote:* "Inj ceftriaxone 1 g intravenous twice daily for 5 days." (Matches exactly).
+
+    *Let's check the follow-up quote:* "Review in medicine OPD after 1 week with repeat CBC and creatinine." (Matches exactly).
+
+    *Let's check the pneumonia quote:* "Right lower zone consolidation consistent with pneumonia." (Matches exactly).
+
+    *Refining Claim 1:* The patient's diagnosis is pneumonia.
+    *Refining Claim 2:* The patient has elevated HbA1c.
+    *Refining Claim 3:* The patient is prescribed intravenous ceftriaxone on discharge.
+    *Refining Claim 4:* The patient's SpO2 on admission was 91% on room air.
+    *Refining Claim 5:* The patient requires a follow-up in the medicine OPD in one week.
+
+    *Final JSON Structure Check:*
+    ```json
+    {
+      "claims": [
+        {
+          "claim": "The patient is diagnosed with pneumonia.",
+          "quote": "Right lower zone consolidation consistent with pneumonia.",
+          "page": 2
+        },
+        {
+          "claim": "The patient's HbA1c level is elevated.",
+          "quote": "HbA1c 8.4% (raised).",
+          "page": 1
+        },
+        {
+          "claim": "The patient is prescribed intravenous ceftriaxone for 5 days upon discharge.",
+          "quote": "Inj ceftriaxone 1 g intravenous twice daily for 5 days.",
+          "page": 2
+        },
+        {
+          "claim": "The patient's oxygen saturation on admission was 91% on room air.",
+          "quote": "SpO2 91% on room air",
+          "page": 1
+        },
+        {
+          "claim": "The patient needs a follow-up in the medicine OPD in one week with specific labs.",
+          "quote": "Review in medicine OPD after 1 week with repeat CBC and creatinine.",
+          "page": 2
+        }
+      ]
+    }
+    ```
+
+    *Double check page numbers:*
+    - HbA1c: Page 1.
+    - SpO2: Page 1.
+    - Ceftriaxone: Page 2.
+    - Diagnosis: Page 2.
+    - Follow-up: Page 2.
+
+    *Double check exact quotes:*
+    - "HbA1c 8.4% (raised)." -> Page 1. Correct.
+    - "SpO2 91% on room air" -> Page 1. Correct.
+    - "Inj ceftriaxone 1 g intravenous twice daily for 5 days." -> Page 2. Correct.
+    - "Right lower zone consolidation consistent with pneumonia." -> Page 2. Correct.
+    - "Review in medicine OPD after 1 week with repeat CBC and creatinine." -> Page 2. Correct.
+
+    *One more check on the SpO2 quote:*
+    Text: "SpO2 91% on room air, temperature 38.6 C."
+    My quote: "SpO2 91% on room air"
+    Is it "copied exactly"? Yes, it's a verbatim segment.
+
+    *One more check on the pneumonia quote:*
+    Text: "Right lower zone consolidation consistent with pneumonia."
+    My quote: "Right lower zone consolidation consistent with pneumonia."
+    Matches.
+
+    *One more check on the HbA1c quote:*
+    Text: "HbA1c 8.4% (raised)."
+    My quote: "HbA1c 8.4% (raised)."
+    Matches.
+
+    *One more check on the ceftriaxone quote:*
+    Text: "Inj ceftriaxone 1 g intravenous twice daily for 5 days."
+    My quote: "Inj ceftriaxone 1 g intravenous twice daily for 5 days."
+    Matches.
+
+    *One more check on the follow-up quote:*
+    Text: "Review in medicine OPD after 1 week with repeat CBC and creatinine."
+    My quote: "Review in medicine OPD after 1 week with repeat CBC and creatinine."
+    Matches.
+
+    *Final check of the prompt requirements:*
+    - 5 factual claims? Yes.
+    - Each with a quote copied exactly? Yes.
+    - Page number included? Yes.
+    - Return JSON only? Yes.
+
+    *Wait, I should ensure the claim itself is a "factual claim a doctor would want".*
+    1. Diagnosis (Essential)
+    2. HbA1c (Essential for diabetes management)
+    3. Discharge Meds (Essential for continuity of care)
+    4. Admission Vitals (Essential for clinical context)
+    5. Follow-up (Essential for safety/monitoring)
+
+    Everything looks good.
+
+    *Self-Correction on SpO2 quote:* The text says "SpO2 91% on room air, temperature 38.6 C."
+    If I include the comma, it's safer. But "SpO2 91% on room air" is a complete factual unit. I'll stick to the exact string.
+
+    *Self-Correction on Diagnosis:*
+    Page 1 says: "Chest radiograph: right lower zone consolidation consistent with pneumonia."
+    Page 2 says: "DIAGNOSIS Right lower zone consolidation consistent with pneumonia."
+    I will use the Page 2 version as it is explicitly under the "DIAGNOSIS" heading.
+
+    *Final JSON construction.*```json
+{
+  "claims": [
+    {
+      "claim": "The patient's diagnosis is pneumonia.",
+      "quote": "Right lower zone consolidation consistent with pneumonia.",
+      "page": 2
+    },
+    {
+      "claim": "The patient has an elevated HbA1c level.",
+      "quote": "HbA1c 8.4% (raised).",
+      "page": 1
+    },
+    {
+      "claim": "The patient is prescribed intravenous ceftriaxone for 5 days upon discharge.",
+      "quote": "Inj ceftriaxone 1 g intravenous twice daily for 5 days.",
+      "page": 2
+    },
+    {
+      "claim": "The patient's oxygen saturation on admission was 91% on room air.",
+      "quote": "SpO2 91% on room air",
+      "page": 1
+    },
+    {
+      "claim": "The patient requires a follow-up in the medicine OPD in one week with specific laboratory tests.",
+      "quote": "Review in medicine OPD after 1 week with repeat CBC and creatinine.",
+      "page": 2
+    }
+  ]
+}
+```

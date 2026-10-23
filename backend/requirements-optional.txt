@@ -1,0 +1,25 @@
+# Optional extras. Nothing in the demo path needs any of these.
+#
+#   pip install -r requirements-optional.txt
+#
+# Two groups:
+#   * legacy vector RAG  — the FAISS store the citation path replaced
+#   * local speech       — faster-whisper STT and pyttsx3 TTS
+#
+# If you install none of it, the server still boots and /healthz reports what is
+# missing instead of failing.
+
+# --- legacy vector RAG (NOT used by citation-or-drop)
+faiss-cpu
+sentence-transformers
+langchain-community
+torch
+tiktoken
+
+# --- OCR for scanned PDFs (also needs the `tesseract` binary on PATH)
+pytesseract
+
+# --- local speech
+faster-whisper
+pyttsx3
+pydub

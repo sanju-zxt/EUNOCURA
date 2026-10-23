@@ -1,0 +1,30 @@
+# Build context is backend/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# secrets and local state
+.env
+.env.*
+!.env.example
+service-account.json
+
+# runtime artefacts
+.cache/
+data/
+storage/
+uploads/
+backend.log
+*.log
+
+# tooling / editor
+.git/
+.gitignore
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/

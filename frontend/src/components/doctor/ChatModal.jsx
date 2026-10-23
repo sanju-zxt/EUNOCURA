@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, MessageSquare, Plus, ArrowLeft, History, Trash2, Upload, FileText, Loader, Eye } from 'lucide-react';
-import { apiRequest } from '../../utils/api';
+import { apiRequest, auditCitations } from '../../utils/api';
 import PDFViewer from './PDFViewer';
+import CitationPanel from './CitationPanel';
 import ReactMarkdown from "react-markdown";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -33,6 +34,11 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
     const [viewerPage, setViewerPage] = useState(1);
     const [viewerCoordinates, setViewerCoordinates] = useState(null);
     const [viewerChunkText, setViewerChunkText] = useState(null);
+    // Citation evidence audit (citation-or-drop)
+    const [citationReport, setCitationReport] = useState(null);
+    const [auditingCitations, setAuditingCitations] = useState(false);
+    const [citationError, setCitationError] = useState(null);
+    const [citationHighlight, setCitationHighlight] = useState(null);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -189,6 +195,9 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
         setPdfDocumentId(null);
         setUploadedPdf(null);
         setUploadedPdfFile(null);
+        setCitationReport(null);
+        setCitationError(null);
+        setCitationHighlight(null);
         setInput('');
         setIsHistoryOpen(false);
     };
@@ -205,6 +214,9 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
         setUploadedPdfFile(null);
         setUploadedPdf(null);
         setPdfDocumentId(null);
+        setCitationReport(null);
+        setCitationError(null);
+        setCitationHighlight(null);
 
         const chat = chatHistories.find(h => h.id === chatId);
         if (chat) {
@@ -326,6 +338,36 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
         }
     };
 
+    // Ask the backend to audit every claim in the open PDF against its cited
+    // line. Claims with no line are dropped; the panel renders the survivors.
+    const handleAuditCitations = async () => {
+        if (!uploadedPdfFile) return;
+        setAuditingCitations(true);
+        setCitationError(null);
+        try {
+            const response = await auditCitations(uploadedPdfFile, '');
+            if (response.success) {
+                setCitationReport(response.data);
+            } else {
+                setCitationError(response.error || 'Could not audit the citations in this PDF');
+            }
+        } catch (error) {
+            setCitationError(error.message || 'Could not audit the citations in this PDF');
+        } finally {
+            setAuditingCitations(false);
+        }
+    };
+
+    // Clicking a kept claim opens the PDF on that page with the cited box lit.
+    const handleJumpToCitation = (page, coords) => {
+        if (!page) return;
+        setViewerPage(page);
+        setViewerCoordinates(coords || null);
+        setViewerChunkText(null);
+        setCitationHighlight(coords ? { page, coords } : null);
+        setShowPdfViewer(true);
+    };
+
     // Handle PDF upload for chatbot
     const handlePdfUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -373,6 +415,10 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
             setUploadedPdf(pdfMetadata);
             // Keep the file object for immediate viewing, but backend stores the path
             setUploadedPdfFile(file);
+            // A new document invalidates any previous evidence audit
+            setCitationReport(null);
+            setCitationError(null);
+            setCitationHighlight(null);
 
             alert(`PDF uploaded successfully! ${data.total_chunks} chunks from ${data.total_pages} pages. You can now ask questions about this document.`);
         } catch (error) {
@@ -797,18 +843,42 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
                                                     <span className="text-xs text-blue-600 dark:text-blue-400">{uploadedPdf.total_pages} pages</span>
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setPdfDocumentId(null);
-                                                    setUploadedPdf(null);
-                                                    setUploadedPdfFile(null);
-                                                }}
-                                                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors group"
-                                                title="Clear PDF"
-                                            >
-                                                <X className="w-4 h-4 text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300" />
-                                            </button>
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAuditCitations}
+                                                    disabled={auditingCitations || !uploadedPdfFile}
+                                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                    title="Check every claim against the line it cites"
+                                                >
+                                                    {auditingCitations ? 'Checking...' : 'Check the evidence'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPdfDocumentId(null);
+                                                        setUploadedPdf(null);
+                                                        setUploadedPdfFile(null);
+                                                        setCitationReport(null);
+                                                        setCitationError(null);
+                                                        setCitationHighlight(null);
+                                                    }}
+                                                    className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors group"
+                                                    title="Clear PDF"
+                                                >
+                                                    <X className="w-4 h-4 text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {(uploadedPdf || citationReport || citationError || auditingCitations) && (
+                                        <div className="mb-3">
+                                            <CitationPanel
+                                                report={citationReport}
+                                                loading={auditingCitations}
+                                                error={citationError}
+                                                onJump={handleJumpToCitation}
+                                            />
                                         </div>
                                     )}
                                     <div className="flex items-end space-x-3">
@@ -865,6 +935,7 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
                         pageNumber={viewerPage}
                         coordinates={viewerCoordinates}
                         chunkText={viewerChunkText}
+                        highlight={citationHighlight}
                         onClose={() => {
                             setShowPdfViewer(false);
                             setViewerCoordinates(null);

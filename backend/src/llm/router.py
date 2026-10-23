@@ -69,6 +69,9 @@ def provider() -> str:
 
 
 def model_for(profile: str = DEFAULT_PROFILE) -> str:
+    """The model id actually used for this profile under the active provider."""
+    if provider() == "gemini":
+        return GEMINI_MODEL
     return PROFILE_MODELS.get(profile, PROFILE_MODELS[DEFAULT_PROFILE])
 
 
@@ -81,13 +84,55 @@ def strip_fences(text: str) -> str:
     return FENCE.sub("", (text or "").strip())
 
 
+def _last_json_object(text: str) -> Optional[str]:
+    """The last balanced top-level {...} in the text.
+
+    Gemma 4 writes its reasoning before the answer, and the reasoning often
+    echoes the output template. Taking the FIRST object grabs the template;
+    taking the LAST grabs what the model actually decided.
+    """
+    depth = 0
+    start: Optional[int] = None
+    last: Optional[str] = None
+    in_string = False
+    escaped = False
+    for i, char in enumerate(text or ""):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif char == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                last = text[start : i + 1]
+    return last
+
+
 def parse_json(text: str) -> Any:
-    """First JSON object/array in the text, tolerating fences and chatter."""
+    """JSON from a model reply, tolerating fences, chatter and thinking text."""
     cleaned = strip_fences(text)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
+
+    last = _last_json_object(cleaned)
+    if last:
+        try:
+            return json.loads(last)
+        except json.JSONDecodeError:
+            pass
+
     for opener, closer in (("{", "}"), ("[", "]")):
         start, end = cleaned.find(opener), cleaned.rfind(closer)
         if start != -1 and end > start:
@@ -229,6 +274,64 @@ def _schema_prompt(prompt: str, schema: Optional[Dict[str, Any]]) -> str:
     )
 
 
+def _gemini_json(
+    prompt: str,
+    schema: Optional[Dict[str, Any]],
+    temperature: Optional[float] = None,
+    cache: bool = True,
+    attempts: int = 3,
+) -> Any:
+    """One JSON answer from Gemma on the Gemini API, cached by prompt hash.
+
+    Measured on the live API (23 Oct 2026):
+
+    * `responseSchema` returns HTTP 500 on a real document — unusable.
+    * `responseMimeType: application/json` does NOT stop the model writing its
+      reasoning first, and costs about 30 s.
+    * A plain text call is the same ~30 s, and the answer is the last balanced
+      JSON object in the reply. So: plain call, parse the last object, retry a
+      500 because it is intermittent.
+
+    Every answer is cached, which is what makes the demo instant: the demo
+    document is warmed once at build time and replayed from disk afterwards.
+    """
+    import httpx
+
+    key = _key("gemini-json", GEMINI_MODEL, str(temperature), prompt)
+    path = _cache_path(key)
+    if cache and LLM_CACHE_ENABLED and path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))["data"]
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    body = {
+        "contents": [{"parts": [{"text": _schema_prompt(prompt, schema)}]}],
+        "generationConfig": {"temperature": temperature if temperature is not None else 0.0},
+    }
+
+    last: Optional[Exception] = None
+    for attempt in range(attempts):
+        try:
+            response = httpx.post(url, json=body, timeout=120)
+            response.raise_for_status()
+            parts = response.json()["candidates"][0]["content"]["parts"]
+            text = "".join(part.get("text", "") for part in parts)
+            data = parse_json(text)
+            if cache and LLM_CACHE_ENABLED:
+                path.write_text(
+                    json.dumps({"model": GEMINI_MODEL, "prompt_sha": key, "data": data},
+                               ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            return data
+        except Exception as exc:  # noqa: BLE001 - 500s here are intermittent
+            last = exc
+            time.sleep(1.0 * (attempt + 1))
+    raise ModelUnavailable(f"{GEMINI_MODEL} JSON call failed after {attempts} tries: {last}")
+
+
 def ask_json(
     prompt: str,
     schema: Optional[Dict[str, Any]] = None,
@@ -244,7 +347,15 @@ def ask_json(
     which is what keeps this working against any compatible server.
     """
     if provider() == "gemini":
-        # Gemma on the Gemini API has no JSON mode — prompt-constrained only.
+        # Gemma 4 on the Gemini API: one plain call, cached, last-object parse.
+        # See `_gemini_json` for the measurements behind that choice.
+        if schema:
+            try:
+                return _gemini_json(prompt, schema, temperature, cache)
+            except ModelUnavailable:
+                raise
+            except Exception as exc:  # noqa: BLE001 - fall back to prompt mode
+                print(f"  [router] JSON call failed ({exc}); using prompt mode")
         raw = ask(_schema_prompt(prompt, schema), profile=profile, temperature=temperature, cache=cache)
         return _repair_parse(raw, prompt, schema, profile, temperature, cache)
 
@@ -332,7 +443,9 @@ def health(timeout: float = 2.0) -> Dict[str, Any]:
 
         response = httpx.get(f"{OLLAMA_BASE_URL.rstrip('/')}/models", timeout=timeout)
         response.raise_for_status()
-        names = [m.get("id", "") for m in response.json().get("data", [])]
+        # A server with no models pulled answers {"object":"list","data":null},
+        # so `.get("data", [])` is not enough — coalesce the None explicitly.
+        names = [m.get("id", "") for m in (response.json().get("data") or [])]
         out["installed"] = names
         out["reachable"] = True
         wanted = set(PROFILE_MODELS.values())
