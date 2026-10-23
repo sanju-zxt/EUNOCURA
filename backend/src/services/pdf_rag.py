@@ -619,21 +619,64 @@ class PDFRAGService:
             del self.chunk_stores[document_id]
 
 
-# Global instance - only create if dependencies are available
-pdf_rag_service = None
+# Global instance — defer heavy embedding-model initialization until a PDF
+# operation actually uses the service. This allows FastAPI to bind its port
+# before PyTorch / sentence-transformers are loaded.
+_pdf_rag_service_real = None
 RAG_UNAVAILABLE_REASON = ""
-if FAISS_AVAILABLE:
+_rag_initialization_attempted = False
+
+
+def get_pdf_rag_service() -> Optional[PDFRAGService]:
+    """Return the PDF RAG service, initializing it only on first use."""
+    global _pdf_rag_service_real
+    global RAG_UNAVAILABLE_REASON
+    global _rag_initialization_attempted
+
+    if _pdf_rag_service_real is not None:
+        return _pdf_rag_service_real
+
+    if _rag_initialization_attempted:
+        return None
+
+    _rag_initialization_attempted = True
+
+    if not FAISS_AVAILABLE:
+        RAG_UNAVAILABLE_REASON = (
+            "FAISS dependencies not installed: install faiss-cpu, "
+            "sentence-transformers, and langchain-community."
+        )
+        print(f"PDF RAG unavailable: {RAG_UNAVAILABLE_REASON}")
+        return None
+
     try:
-        print("Initializing PDF RAG service...")
-        pdf_rag_service = PDFRAGService()
-        print("PDF RAG service initialized")
-    except Exception as e:  # noqa: BLE001
-        print(f"Warning: could not initialize the PDF RAG service: {e}")
-        RAG_UNAVAILABLE_REASON = f"PDF RAG unavailable: {e}"
-        pdf_rag_service = None
-else:
-    RAG_UNAVAILABLE_REASON = (
-        "FAISS dependencies not installed: pip install faiss-cpu sentence-transformers"
-    )
-    print("PDF RAG service not available: FAISS dependencies not installed")
-    print("   Please install: pip install faiss-cpu sentence-transformers")
+        print("Initializing PDF RAG on first PDF request...")
+        service = PDFRAGService()
+        _pdf_rag_service_real = service
+        RAG_UNAVAILABLE_REASON = ""
+        print("PDF RAG initialized successfully.")
+        return service
+    except Exception as exc:  # noqa: BLE001
+        RAG_UNAVAILABLE_REASON = f"PDF RAG unavailable: {exc}"
+        print(f"Warning: {RAG_UNAVAILABLE_REASON}")
+        return None
+
+
+class _LazyPDFRAGProxy:
+    """
+    Backward-compatible proxy for existing code that imports
+    `pdf_rag_service` and calls methods on it. The real service is created
+    only when an attribute/method is first accessed.
+    """
+
+    def __getattr__(self, name: str):
+        service = get_pdf_rag_service()
+        if service is None:
+            reason = RAG_UNAVAILABLE_REASON or "PDF RAG is unavailable."
+            raise RuntimeError(reason)
+        return getattr(service, name)
+
+
+# Keep existing imports such as `from ...pdf_rag import pdf_rag_service`
+# working, while avoiding model initialization during module import.
+pdf_rag_service = _LazyPDFRAGProxy()
