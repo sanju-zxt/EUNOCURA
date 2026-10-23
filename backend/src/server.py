@@ -29,10 +29,14 @@ VERSION = "2.0.0"
 
 app = FastAPI(title=APP_NAME, version=VERSION)
 
+
 _origins = os.getenv(
-    "FRONTEND_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,"
+    "http://localhost:3001,http://127.0.0.1:3001,"
+    "http://localhost:5173,http://127.0.0.1:5173"
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _origins.split(",") if o.strip()],
@@ -40,6 +44,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Local storage fallback: uploaded documents are served from here when R2 is
 # not configured, so the PDF viewer works on a clean clone.
