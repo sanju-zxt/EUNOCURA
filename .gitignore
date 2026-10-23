@@ -26,6 +26,9 @@ dist/
 # artifacts
 *.log
 data/uploads/
+# patient uploads and the model cache live here at runtime — never in git.
+# (the pattern above is root-anchored, so the backend copy needs its own line)
+backend/data/
 
 # local runtime (downloaded mongod, model caches)
 .local/
