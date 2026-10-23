@@ -1,0 +1,25 @@
+EUNOCURA
+Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
+--------------------------------------------------------------------------
+Licensing of this repository
+--------------------------------------------------------------------------
+
+1. Code we wrote — the citation-or-drop verifier, the model router, the audit
+   trail, the offline tests and the deployment files — is licensed under the
+   Apache License, Version 2.0 (OSI-approved, SPDX identifier: Apache-2.0).
+   The full text is in the LICENSE file.
+
+2. Code inherited from the upstream project, EUNOCURA (published as MedAI,
+   https://github.com/Prathameshworks247/MedAI), remains under the MIT licence
+   (OSI-approved, SPDX identifier: MIT). That notice is reproduced verbatim in
+   LICENSE-MIT-upstream and must ship with every copy, as MIT requires. Those
+   files keep their original authorship; we did not relicense them.
+
+3. Model weights are not distributed in this repository and keep their own
+   licences. See README section 2 for the exact model ids we pin:
+     - Qwen2.5 (qwen2.5:7b-instruct) — Apache-2.0
+     - Gemma 4 (gemma-4-26b-a4b-it) — open weights, Gemma Terms of Use
+
+The OSI list of approved licences, including both licences used above:
+https://opensource.org/licenses

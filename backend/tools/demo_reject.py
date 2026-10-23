@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Lohith Sanju P and the EUNOCURA contributors
+
 """The demo beat that matters: invented claims die in front of you.
 
 Real page text from a real PDF, plus two claims that were never written in it.
