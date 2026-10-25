@@ -1,0 +1,31 @@
+version: 2
+
+# Dependency bumps as pull requests, so a pin change is reviewed instead of
+# silently taking down the demo path. requirements.txt is pinned on purpose
+# (see its header) — Dependabot proposing a bump is the reminder to re-run the
+# suites before accepting it.
+
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: ci

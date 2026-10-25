@@ -38,7 +38,7 @@ PAGES = {
 
 
 class FakeChunk:
-    """Stand-in for services.pdf_rag.PDFChunk, which pulls in torch and FAISS."""
+    """Stand-in for services.pdf_rag.PDFChunk (that module now imports FAISS lazily)."""
 
     def __init__(self, text, page, box):
         self.text = text
