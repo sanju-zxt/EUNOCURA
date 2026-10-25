@@ -6,9 +6,6 @@ Uses a sequential pipeline approach compatible with Gemini
 from typing import Optional
 import io
 
-from src.r2 import upload_to_r2
-from src.services.tools import extract_clinical_info, extract_text_from_pdf, _save_to_mongo_impl
-
 
 # Create a simple sequential pipeline function
 async def process_medical_document(
@@ -32,6 +29,11 @@ async def process_medical_document(
     Returns:
         Dictionary with processing results
     """
+    # LangChain and boto3 are only needed once a document is actually ingested,
+    # so they are imported here rather than at module import (API boot).
+    from src.r2 import upload_to_r2
+    from src.services.tools import extract_clinical_info, extract_text_from_pdf, _save_to_mongo_impl
+
     results = {
         "extracted_text": None,
         "extracted_info": None,

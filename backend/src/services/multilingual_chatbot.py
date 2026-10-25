@@ -5,22 +5,25 @@ Multilingual patient chatbot.
 - Text-to-Speech: local pyttsx3 system voices
 """
 
-import httpx
 import base64
-import asyncio
-import json
-import ssl
-import certifi
-import websockets
 import io
 from typing import Optional, Dict, Any
-from langchain_core.messages import HumanMessage, SystemMessage
-from pydub import AudioSegment
 
-from src.llm.gemma import chat_model
+# Reply generation, audio decoding and prompt construction happen per request,
+# so LangChain, pydub and the chat client are imported where they are used:
+# `/chatbot/languages` and every other route used to pay for them at boot.
 
-# `slm` profile: multilingual patient-facing replies.
-llm = chat_model("slm")
+_llm = None
+
+
+def _get_llm():
+    """The `slm` profile chat client, constructed once."""
+    global _llm
+    if _llm is None:
+        from src.llm.gemma import chat_model
+
+        _llm = chat_model("slm")
+    return _llm
 
 # Supported languages mapping
 SUPPORTED_LANGUAGES = {
@@ -53,6 +56,8 @@ async def convert_audio_to_wav(audio_data: bytes) -> bytes:
         WAV audio bytes with 16000 sample rate
     """
     try:
+        from pydub import AudioSegment
+
         # Load audio from bytes (pydub auto-detects format)
         audio = AudioSegment.from_file(io.BytesIO(audio_data))
 
@@ -156,6 +161,8 @@ Remember:
 - The user specifically requested {lang_name}, so use the correct vocabulary, grammar, and expressions for {lang_name}"""
 
         # Build messages
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
         messages = [SystemMessage(content=system_prompt)]
 
         # Add conversation history if provided (last 5 messages)
@@ -168,14 +175,13 @@ Remember:
                 if role == "user":
                     messages.append(HumanMessage(content=content))
                 elif role == "assistant":
-                    from langchain_core.messages import AIMessage
                     messages.append(AIMessage(content=content))
 
         # Add current user message
         messages.append(HumanMessage(content=user_message))
 
-        # Generate response using Gemini
-        response = llm.invoke(messages)
+        # Generate response using the local SLM
+        response = _get_llm().invoke(messages)
         response_text = response.content if hasattr(response, "content") else str(response)
 
         # Validate response is not empty

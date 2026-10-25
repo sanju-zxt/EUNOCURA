@@ -13,12 +13,14 @@ from src.db import user_collection, chat_history_collection
 from datetime import datetime
 from bson import ObjectId
 from src.middlewares.auth import check_doctor_exists
-from src.services.chatbot_intent import classify_intent
 from src.services.chatbot_context import build_chatbot_context, verify_doctor_patient_access
-from src.services.chatbot_prompts import build_chatbot_prompt_async
-from src.services.pdf_rag import pdf_rag_service, FAISS_AVAILABLE
+from src.services.pdf_rag import get_pdf_rag_service
 from src.services import page_index
-from src.llm.featherless import llm
+
+# `chatbot_intent` and `chatbot_prompts` build a LangChain chat client at import
+# time (langchain-openai, ~0.8 s) and `pdf_rag` loads faiss on first use. None of
+# it belongs on the boot path of the API, so those imports happen in the two
+# handlers that need them.
 
 router = APIRouter()
 
@@ -159,19 +161,22 @@ async def get_doctors(
     filter: Optional[str] = None,
 ):
     query: dict = {"role": "doctor"}
+    # Never ship credential material: `hashed_password` lives on the same document.
+    projection = {"hashed_password": 0, "password": 0}
     if filter:
         query["$text"] = {"$search": filter}
         cursor = user_collection.find(
             query,
-            {"score": {"$meta": "textScore"}}
+            {**projection, "score": {"$meta": "textScore"}}
         ).sort([("score", {"$meta": "textScore"})]).limit(10)
     else:
-        cursor = user_collection.find(query).limit(10)
+        cursor = user_collection.find(query, projection).limit(10)
 
     results = await cursor.to_list(length=10)
     
     # Convert ObjectId to string
     for user in results:
+        user.pop("hashed_password", None)
         if "_id" in user:
             user["_id"] = str(user["_id"])
             
@@ -217,6 +222,8 @@ async def doctor_chat(
             )
         
         # Step 2: Classify intent
+        from src.services.chatbot_intent import classify_intent
+
         print(f"🔍 Classifying intent for question: {question[:100]}...")
         intent_result = await classify_intent(question)
         intent = intent_result.intent
@@ -233,8 +240,12 @@ async def doctor_chat(
             document_id = request.pdf_document_id
             print(f"📄 Using PDF context from document: {document_id}")
             try:
-                if pdf_rag_service is not None:
-                    search_results = await pdf_rag_service.search(
+                # FAISS is optional and slow to load: ask for the real service
+                # (None when the vector stack cannot import) and fall back to the
+                # keyword index instead of failing the question.
+                pdf_service = get_pdf_rag_service()
+                if pdf_service is not None:
+                    search_results = await pdf_service.search(
                         document_id=document_id,
                         query=question,
                         k=5,
@@ -259,7 +270,7 @@ async def doctor_chat(
                     "pdf_document_id": document_id,
                     "relevant_chunks": search_results,
                     "retrieval_method": (
-                        "faiss" if pdf_rag_service is not None else "keyword_fallback"
+                        "faiss" if pdf_service is not None else "keyword_fallback"
                     ),
                 }
 
@@ -298,6 +309,8 @@ async def doctor_chat(
             print(f"✅ Context built: {len(str(context))} characters")
         
         # Step 4: Build prompt with strict anti-hallucination instructions and conversation history
+        from src.services.chatbot_prompts import build_chatbot_prompt_async
+
         if pdf_context:
             # Use PDF context only
             prompt = await build_chatbot_prompt_async(
@@ -321,6 +334,8 @@ async def doctor_chat(
             )
         
         # Step 5: Generate answer using Featherless AI
+        from src.llm.featherless import llm
+
         print(f"🤖 Generating answer with Featherless AI...")
         chain = prompt | llm
         response = chain.invoke({"question": question})
@@ -477,9 +492,10 @@ async def upload_pdf_for_chat(
 
         file_path.write_bytes(content)
 
-        if pdf_rag_service is not None:
+        pdf_service = get_pdf_rag_service()
+        if pdf_service is not None:
             await file.seek(0)
-            result = await pdf_rag_service.process_pdf(file, document_id)
+            result = await pdf_service.process_pdf(file, document_id)
             return PDFUploadResponse(
                 document_id=document_id,
                 file_name=file.filename,

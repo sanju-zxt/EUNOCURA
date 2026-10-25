@@ -2,22 +2,40 @@
 LangChain Tools for Medical Data Ingestion Pipeline
 """
 
-from langchain.tools import tool  # pyright: ignore[reportMissingImports]
-from langchain_core.tools import StructuredTool  # pyright: ignore[reportMissingImports]
-from langchain_core.prompts import ChatPromptTemplate  # pyright: ignore[reportMissingImports]
 from typing import Dict, Any
-import json
 from bson import ObjectId
 from datetime import datetime
 
-from src.llm.gemma import ask_json, chat_model
+# `langchain.tools` re-exports these from langchain_core, so this is the same
+# decorator without also loading the aggregate `langchain` package.
+from langchain_core.tools import StructuredTool, tool  # pyright: ignore[reportMissingImports]
+
+from src.llm.gemma import ask_json
 from src.db import appointment_collection, user_collection
 from src.models.llm import ExtractionResult
 import json
 import re
 
-# `slm` profile: extraction / classification work.
-llm = chat_model("slm")
+# `slm` profile: extraction / classification work. Built on first use -- making
+# the client here used to load langchain-openai during API boot.
+_llm = None
+
+
+def _get_llm():
+    """The `slm` profile chat client, constructed once."""
+    global _llm
+    if _llm is None:
+        from src.llm.gemma import chat_model
+
+        _llm = chat_model("slm")
+    return _llm
+
+
+def __getattr__(name: str):
+    """Keep `tools.llm` working for callers that read it as a module attribute."""
+    if name == "llm":
+        return _get_llm()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @tool
@@ -135,6 +153,8 @@ def extract_clinical_info(document_text: str) -> Dict[str, Any]:
     Return a valid JSON object with these exact keys: appointment_updates, reports, tests, patient_profile_updates, time_series_observations.
     Return ONLY the JSON object, no additional text or markdown formatting."""
         
+    from langchain_core.prompts import ChatPromptTemplate
+
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_message),
         ("human", """
@@ -150,7 +170,7 @@ def extract_clinical_info(document_text: str) -> Dict[str, Any]:
     prompt_text = prompt.format(document_text=document_text)
 
     # Create chain without parser first to see raw output
-    chain_without_parser = prompt | llm
+    chain_without_parser = prompt | _get_llm()
     
     try:
         # Get raw LLM response for debugging

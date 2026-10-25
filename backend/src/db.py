@@ -51,12 +51,26 @@ except Exception as exc:  # noqa: BLE001 - never block import
 
 
 async def ping(timeout_ms: int = 1500) -> bool:
-    """True when the server answers. Used by /healthz and preflight."""
+    """True when the server answers. Used by /healthz and preflight.
+
+    Deliberately does **not** reuse the module-level client: that one binds to the
+    event loop of its first use, so a second loop (a test client, a reloaded
+    worker) gets "attached to a different loop" and reports a perfectly healthy
+    database as down. A short-lived probe keeps the answer true in every loop.
+    """
+    probe = None
     try:
-        await client.admin.command("ping", maxTimeMS=timeout_ms)
+        probe = AsyncMongoClient[Any](URI, **connection_kwargs)
+        await probe.admin.command("ping", maxTimeMS=timeout_ms)
         return True
     except Exception:  # noqa: BLE001
         return False
+    finally:
+        if probe is not None:
+            try:
+                await probe.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 async def test_connection():

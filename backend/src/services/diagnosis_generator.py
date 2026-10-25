@@ -5,19 +5,52 @@ Step 1: Med42 generates plain text diagnosis
 Step 2: Gemini converts text + context to structured JSON
 """
 from typing import Dict, List, Any, Optional
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 from datetime import datetime
 import json
 import re
 
-from src.llm.featherless import llm as med42_llm
-from src.llm.gemma import ask_json, chat_model
+from src.llm.gemma import ask_json
 from src.services.chatbot_context import get_patient_context, get_appointment_sequence, get_appointment_context, get_time_series_context
-from src.services.timeseries_predictor import predict_future_metrics
 
-# `slm` profile: context compression / structuring. `med42_llm` stays the medical profile.
-llm = chat_model("slm")
+# The two model clients, LangChain's prompt layer and the optional torch-backed
+# trend model used to be pulled in at import time -- together roughly 15 s of
+# boot cost for code that only runs once a diagnosis is actually requested.
+# Each one is resolved on first use and kept, so the first real request pays and
+# `import src.server` does not.
+
+_llm = None
+_med42_llm = None
+_predict_future_metrics = None
+
+
+def _slm():
+    """`slm` profile client: context compression / structuring. Built once."""
+    global _llm
+    if _llm is None:
+        from src.llm.gemma import chat_model
+
+        _llm = chat_model("slm")
+    return _llm
+
+
+def _medical_model():
+    """`med42` profile client: medical reasoning. Built once."""
+    global _med42_llm
+    if _med42_llm is None:
+        from src.llm.featherless import llm as med42_llm
+
+        _med42_llm = med42_llm
+    return _med42_llm
+
+
+def _trend_predictor():
+    """`predict_future_metrics`, imported on use: it pulls torch in (~15 s)."""
+    global _predict_future_metrics
+    if _predict_future_metrics is None:
+        from src.services.timeseries_predictor import predict_future_metrics
+
+        _predict_future_metrics = predict_future_metrics
+    return _predict_future_metrics
 
 
 async def compress_diagnosis_context_with_gemini(context: Dict[str, Any], max_chars: int = 8000) -> str:
@@ -61,7 +94,7 @@ async def compress_diagnosis_context_with_gemini(context: Dict[str, Any], max_ch
             HumanMessage(content=compression_prompt)
         ]
 
-        response = await llm.ainvoke(messages)
+        response = await _slm().ainvoke(messages)
         compressed_text = response.content if hasattr(response, 'content') else str(response)
         
         # Clean up any markdown code blocks
@@ -110,7 +143,7 @@ async def build_diagnosis_context(patient_id: str, appointment_id: str) -> Dict[
     
     # Get LSTM predictions for time series
     try:
-        predictions = await predict_future_metrics(time_series_data)
+        predictions = await _trend_predictor()(time_series_data)
         context["predictions"] = predictions
     except Exception as e:
         print(f"⚠️ Failed to generate LSTM predictions: {e}")
@@ -312,6 +345,8 @@ Analyze patterns in vitals, lab results, and clinical notes to provide evidence-
         escaped_context_summary = context_summary.replace("{", "{{").replace("}", "}}")
         
         # Create prompt template
+        from langchain_core.prompts import ChatPromptTemplate
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", human_prompt_template)
@@ -322,7 +357,7 @@ Analyze patterns in vitals, lab results, and clinical notes to provide evidence-
         
         # Invoke LLM
         print(f"🤖 Generating diagnoses using Med42...")
-        chain = prompt | med42_llm
+        chain = prompt | _medical_model()
         
         # Get raw text response
         raw_response = chain.invoke({})

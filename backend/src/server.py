@@ -9,6 +9,7 @@ stopping the process.
 
 import importlib.util
 import os
+import time as _time
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "True")
 
@@ -59,6 +60,11 @@ def _has_module(name: str) -> bool:
         return False
 
 
+# (monotonic timestamp, result) for the model probe in /healthz.
+_MODEL_HEALTH_CACHE: tuple[float, dict | None] = (0.0, None)
+_MODEL_HEALTH_TTL = 15.0
+
+
 def _stt_status() -> dict:
     """Local speech only: faster-whisper if installed, else text-only."""
     try:
@@ -88,6 +94,19 @@ def _stt_status() -> dict:
     }
 
 
+def _rag_status() -> dict:
+    """What the optional vector stack actually loaded.
+
+    `pdf_rag` imports faiss and its friends on first use, so this is the one
+    probe that can be slow: it is always called off the event loop, under a
+    timeout, and reports `available: false` with the reason when the import
+    fails (a blocked DLL looks like a missing dependency to the caller).
+    """
+    from src.services import pdf_rag
+
+    return pdf_rag.probe()
+
+
 @app.get("/")
 async def root():
     return {
@@ -114,22 +133,38 @@ async def healthz():
         except Exception:
             return default
 
-    model = await _bounded(_asyncio.to_thread(router.health), 2.5, {
-        "provider": "unknown", "reachable": False, "detail": "timed out",
-    })
+    # The model probe asks the provider what it has installed, which is ~2.3 s
+    # against a local Ollama (it lists tags) and much longer when the host is
+    # firewalled. It is cached for a few seconds so a demo that polls /healthz
+    # does not pay that on every hit, and bounded generously enough that a
+    # healthy provider is not reported as "timed out" (a false "degraded" on the
+    # projector is worse than a slightly slower first health check).
+    global _MODEL_HEALTH_CACHE
+    now = _time.monotonic()
+    cached_at, cached_value = _MODEL_HEALTH_CACHE
+    if cached_value is None or now - cached_at > _MODEL_HEALTH_TTL:
+        cached_value = await _bounded(_asyncio.to_thread(router.health), 6.0, {
+            "provider": "unknown", "reachable": False, "detail": "timed out",
+        })
+        _MODEL_HEALTH_CACHE = (now, cached_value)
+    model = cached_value
     mongo_reachable = await _bounded(db.ping(), 2.0, False) if db.MONGO_CONFIGURED else False
-    stt = _stt_status()
 
-    # Report what actually initialised, not just what is installed: torch can be
-    # present and still refuse to load (Windows Application Control, missing libs).
-    try:
-        from src.services import pdf_rag as _pdf_rag
-        rag_reason = getattr(_pdf_rag, "RAG_UNAVAILABLE_REASON", "") or (
-            "" if getattr(_pdf_rag, "pdf_rag_service", None) else "PDF RAG service did not initialise"
-        )
-    except Exception as exc:  # noqa: BLE001
-        rag_reason = f"pdf_rag import failed: {exc}"
-    embeddings = _has_module("faiss") and _has_module("sentence_transformers") and not rag_reason
+    # Both of these import optional, slow dependencies on first call (faster-whisper
+    # for STT, faiss for the vector store), so they run off the event loop under the
+    # same bound as every other probe: a demo must still answer in about a second,
+    # and a probe that cannot finish reports the timeout instead of hanging.
+    stt = await _bounded(_asyncio.to_thread(_stt_status), 3.0, {
+        "provider": "unknown",
+        "available": False,
+        "note": "speech probe timed out",
+    })
+    rag = await _bounded(_asyncio.to_thread(_rag_status), 3.0, {
+        "vector_store": "unknown",
+        "available": False,
+        "reason": "vector store probe timed out",
+        "pdf_reader": "unknown",
+    })
 
     citations_ready = _has_module("pdfplumber")
 
@@ -170,9 +205,9 @@ async def healthz():
         },
         "rag": {
             "role": "removed from the demo path — page text + quote matching replaced it",
-            "vector_store": "faiss" if _has_module("faiss") else "absent",
-            "available": embeddings,
-            "hint": rag_reason,
+            "vector_store": rag["vector_store"],
+            "available": rag["available"],
+            "hint": rag["reason"],
         },
     }
 

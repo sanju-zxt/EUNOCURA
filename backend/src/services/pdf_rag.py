@@ -7,55 +7,102 @@ each box is built from the words inside that range (see services/bbox.py).
 """
 import os
 import tempfile
-import json
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
-import numpy as np
+from collections import namedtuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from fastapi import UploadFile
 
 from src.services import bbox
 
-try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
+# pdfplumber, faiss, langchain-community and tiktoken are all optional and slow --
+# the vector stack alone drags in torch and sentence-transformers, which is tens
+# of seconds, and on Windows a policy-blocked DLL surfaces as an ImportError at
+# import time. None of it is needed to boot the API or to serve the citation
+# path, so every one of them is resolved on first use, not on import.
 
-try:
-    import faiss
-    from langchain_community.vectorstores import FAISS
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    # Try new location first (langchain-text-splitters package)
+_VectorDeps = namedtuple(
+    "_VectorDeps",
+    ["faiss", "FAISS", "HuggingFaceEmbeddings", "RecursiveCharacterTextSplitter"],
+)
+
+_VECTOR_DEPS: Optional[_VectorDeps] = None
+_VECTOR_DEPS_REASON = ""
+
+_PDFPLUMBER: Any = None
+_PDFPLUMBER_REASON = ""
+
+
+def vector_deps() -> Optional[_VectorDeps]:
+    """Import faiss / langchain-community / the text splitter, once.
+
+    Returns None and records the reason when the stack cannot be imported, so a
+    caller can fall back to keyword search instead of failing the request. The
+    first successful call is expensive; that is why it never runs at import.
+    """
+    global _VECTOR_DEPS, _VECTOR_DEPS_REASON
+
+    if _VECTOR_DEPS is not None:
+        return _VECTOR_DEPS
+    if _VECTOR_DEPS_REASON:
+        return None
+
     try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-    except ImportError:
-        # Fallback to old location
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
-    FAISS_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️  FAISS dependencies import error: {e}")
-    FAISS_AVAILABLE = False
+        import faiss
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        from langchain_community.vectorstores import FAISS
+        # Try new location first (langchain-text-splitters package)
+        try:
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+        except ImportError:
+            # Fallback to old location
+            from langchain.text_splitter import RecursiveCharacterTextSplitter
+    except Exception as exc:  # noqa: BLE001 - a blocked DLL does not raise ImportError
+        _VECTOR_DEPS_REASON = f"FAISS dependencies import error: {exc}"
+        print(f"PDF RAG vector store unavailable: {_VECTOR_DEPS_REASON}")
+        return None
 
-try:
-    import tiktoken
-    TIKTOKEN_AVAILABLE = True
-except ImportError:
-    TIKTOKEN_AVAILABLE = False
-    print("⚠️  tiktoken not available. Install with: pip install tiktoken")
+    _VECTOR_DEPS = _VectorDeps(
+        faiss=faiss,
+        FAISS=FAISS,
+        HuggingFaceEmbeddings=HuggingFaceEmbeddings,
+        RecursiveCharacterTextSplitter=RecursiveCharacterTextSplitter,
+    )
+    return _VECTOR_DEPS
 
-# No API key needed - using local HuggingFace embeddings
+
+def vector_store_available() -> bool:
+    """True when the vector stack actually imported, not merely installed."""
+    return vector_deps() is not None
+
+
+def pdfplumber_module() -> Any:
+    """Import pdfplumber on first use, or None when it is unavailable."""
+    global _PDFPLUMBER, _PDFPLUMBER_REASON
+
+    if _PDFPLUMBER is not None:
+        return _PDFPLUMBER
+    if _PDFPLUMBER_REASON:
+        return None
+    try:
+        import pdfplumber
+    except Exception as exc:  # noqa: BLE001
+        _PDFPLUMBER_REASON = f"pdfplumber import error: {exc}"
+        print(f"PDF text extraction unavailable: {_PDFPLUMBER_REASON}")
+        return None
+    _PDFPLUMBER = pdfplumber
+    return pdfplumber
+
 
 # Token counting function for chunking
 def _count_tokens(text: str) -> int:
     """Count tokens in text using tiktoken (cl100k_base encoding)"""
-    if not TIKTOKEN_AVAILABLE:
-        # Fallback: approximate token count (roughly 1 token = 4 characters)
-        return len(text) // 4
     try:
+        import tiktoken
+
         encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
-    except Exception as e:
-        print(f"⚠️  Error counting tokens, using character approximation: {e}")
+    except Exception:
+        # Fallback: approximate token count (roughly 1 token = 4 characters)
         return len(text) // 4
 
 
@@ -150,14 +197,18 @@ class PDFRAGService:
     CHUNKING_VERSION = "v2.0-force-split-300chars"
     
     def __init__(self):
-        if not FAISS_AVAILABLE:
-            raise ImportError("FAISS and required dependencies are not available. Please install faiss-cpu and langchain-community.")
-        
+        deps = vector_deps()
+        if deps is None:
+            raise ImportError(
+                "FAISS and required dependencies are not available. "
+                "Please install faiss-cpu and langchain-community."
+            )
+
         # Use HuggingFace embeddings (sentence-transformers) - free, local, no API key needed
         # Using a lightweight model for fast embeddings
         try:
             print("🔧 Loading embedding model (this may take a moment on first run - downloading ~80MB)...")
-            self.embeddings = HuggingFaceEmbeddings(
+            self.embeddings = deps.HuggingFaceEmbeddings(
                 model_name="sentence-transformers/all-MiniLM-L6-v2",  # Lightweight, fast model
                 model_kwargs={'device': 'cpu'},  # Use CPU (change to 'cuda' if GPU available)
                 encode_kwargs={'normalize_embeddings': True}  # Normalize for better similarity search
@@ -181,14 +232,14 @@ class PDFRAGService:
         # - Max chunk size: 300 characters (hard cap, enforced in post-processing)
         # Using separators optimized for PDF text to ensure proper splitting
         print(f"📦 PDFRAGService initialized with chunking {self.CHUNKING_VERSION}")
-        self.text_splitter = RecursiveCharacterTextSplitter(
+        self.text_splitter = deps.RecursiveCharacterTextSplitter(
             chunk_size=300,  # Target chunk size in characters
             chunk_overlap=50,  # Overlap in characters
             length_function=len,  # Use character count
             separators=["\n\n", "\n", ". ", " ", ""]  # Explicit separators for better splitting
         )
         self.max_chunk_size = 300  # Hard cap: any chunk larger than target size will be split
-        self.vector_stores: Dict[str, FAISS] = {}  # Store FAISS indices by document ID
+        self.vector_stores: Dict[str, Any] = {}  # Store FAISS indices by document ID
         self.chunk_stores: Dict[str, List[PDFChunk]] = {}  # Store chunks by document ID
     
     def _force_split_ranges(self, text: str, target_size: int = 300, overlap: int = 50) -> List[Tuple[int, int]]:
@@ -342,7 +393,10 @@ class PDFRAGService:
         
         # Chunk exceeds limit, split it further
         # Use a smaller splitter for sub-chunking
-        sub_splitter = RecursiveCharacterTextSplitter(
+        deps = vector_deps()
+        if deps is None:
+            raise ImportError("FAISS and required dependencies are not available.")
+        sub_splitter = deps.RecursiveCharacterTextSplitter(
             chunk_size=self.max_chunk_size,
             chunk_overlap=0,  # No overlap for hard splits
             length_function=len,  # Use character count
@@ -403,12 +457,14 @@ class PDFRAGService:
         Returns:
             Dictionary with processing results
         """
-        if not PDFPLUMBER_AVAILABLE:
+        pdfplumber = pdfplumber_module()
+        if pdfplumber is None:
             raise ImportError("pdfplumber is required for PDF processing")
-        
-        if not FAISS_AVAILABLE:
+
+        deps = vector_deps()
+        if deps is None:
             raise ImportError("faiss-cpu and langchain-community are required for vector store")
-        
+
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             content = await file.read()
@@ -514,7 +570,7 @@ class PDFRAGService:
             if all_texts:
                 # Create metadata for each chunk to track its index
                 metadatas = [{"chunk_index": i} for i in range(len(all_texts))]
-                vector_store = FAISS.from_texts(
+                vector_store = deps.FAISS.from_texts(
                     texts=all_texts,
                     embedding=self.embeddings,
                     metadatas=metadatas
@@ -641,9 +697,10 @@ def get_pdf_rag_service() -> Optional[PDFRAGService]:
 
     _rag_initialization_attempted = True
 
-    if not FAISS_AVAILABLE:
+    if not vector_store_available():
         RAG_UNAVAILABLE_REASON = (
-            "FAISS dependencies not installed: install faiss-cpu, "
+            _VECTOR_DEPS_REASON
+            or "FAISS dependencies not installed: install faiss-cpu, "
             "sentence-transformers, and langchain-community."
         )
         print(f"PDF RAG unavailable: {RAG_UNAVAILABLE_REASON}")
@@ -680,3 +737,49 @@ class _LazyPDFRAGProxy:
 # Keep existing imports such as `from ...pdf_rag import pdf_rag_service`
 # working, while avoiding model initialization during module import.
 pdf_rag_service = _LazyPDFRAGProxy()
+
+
+def probe() -> Dict[str, Any]:
+    """What the RAG stack can actually do right now, without loading the model.
+
+    Imports the optional dependencies but never constructs the embedding model,
+    so this stays bounded and safe to call from `/healthz`. `find_spec` is not
+    enough: on this platform faiss is installed and its DLL is still blocked.
+    """
+    deps = vector_deps()
+    pdfplumber = pdfplumber_module()
+
+    if deps is None:
+        reason = _VECTOR_DEPS_REASON or "FAISS dependencies not installed"
+    elif pdfplumber is None:
+        reason = _PDFPLUMBER_REASON or "pdfplumber is not installed"
+    else:
+        reason = ""
+
+    return {
+        "vector_store": "faiss" if deps is not None else "absent",
+        "available": deps is not None and pdfplumber is not None,
+        "reason": reason,
+        "pdf_reader": "pdfplumber" if pdfplumber is not None else "missing",
+    }
+
+
+def __getattr__(name: str) -> Any:
+    """Keep the old module constants importable without importing faiss.
+
+    `FAISS_AVAILABLE` and friends used to be decided at import time, which is
+    what made `import src.server` load torch. They are resolved on access now,
+    so `from src.services.pdf_rag import FAISS_AVAILABLE` still tells the truth.
+    """
+    if name == "FAISS_AVAILABLE":
+        return vector_store_available()
+    if name == "PDFPLUMBER_AVAILABLE":
+        return pdfplumber_module() is not None
+    if name == "TIKTOKEN_AVAILABLE":
+        try:
+            import tiktoken  # noqa: F401
+
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
