@@ -6,16 +6,18 @@ from typing import Optional, List
 import asyncio
 
 from src.models.appointment import AppointmentModel, UpdateAppointmentModel, DiagnosisResponse, PrimaryDiagnosis, DiagnosisItem
-from src.middlewares.auth import check_doctor_exists
+from src.middlewares.auth import check_doctor_exists, get_current_user
 from src.db import appointment_collection, user_collection
 from src.services.streaming_stt import StreamingTranscriber
 from src.services.whisper_service import transcribe_audio_file
 
-from src.services.tools import extract_clinical_info, _save_to_mongo_impl
-from src.services.diagnosis_generator import generate_diagnosis, build_diagnosis_context, convert_med42_to_structured_json
 from src.services.chatbot_context import verify_doctor_patient_access
-from src.r2 import upload_to_r2
 from pydantic import BaseModel
+
+# The extraction tools and the diagnosis generator are imported inside the two
+# endpoints that use them: both load LangChain, and the diagnosis path loads
+# torch, which is tens of seconds of boot time for endpoints most requests never
+# touch. Nothing on this router needs them at import time.
 
 class FinalizeRecordingRequest(BaseModel):
     discussion_text: str
@@ -23,13 +25,45 @@ class FinalizeRecordingRequest(BaseModel):
 router = APIRouter()
 
 
+def _scoped_filters(user: dict) -> dict:
+    """Confine a read to the caller.
+
+    These read routes used to take no auth dependency and returned every appointment
+    in the collection - names, ages and complaints included. A patient now sees only
+    their own visits; a doctor sees only the visits they are the doctor for.
+    """
+    role = user.get("role")
+    if role == "patient":
+        return {"patient_id": user["_id"]}
+    if role == "doctor":
+        return {"doctor_id": user["_id"]}
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied. Only patients and doctors have appointment records.",
+    )
+
+
+def _can_access(appointment: dict, user: dict) -> bool:
+    if user.get("role") == "patient":
+        return str(appointment.get("patient_id")) == str(user["_id"])
+    if user.get("role") == "doctor":
+        return str(appointment.get("doctor_id")) == str(user["_id"])
+    return False
+
+
 @router.get("/total")
 async def total_appointments(
     patient_id: Optional[str] = Query(None),
+    user=Depends(get_current_user),
 ):
     try:
-        query = {"status": "completed"}
-        if patient_id:
+        query = {"status": "completed", **_scoped_filters(user)}
+        if patient_id and user.get("role") == "doctor":
+            linked = await appointment_collection.find_one(
+                {"doctor_id": user["_id"], "patient_id": patient_id}, {"_id": 1}
+            )
+            if not linked:
+                return {"total": 0}
             query["patient_id"] = patient_id
         count = await appointment_collection.count_documents(query)
         return {"total": count}
@@ -47,14 +81,30 @@ async def read_appointments(
     appointment_status: Optional[str] = Query(None),
     appointment_date: Optional[str] = Query(None),
     limit: Optional[int] = Query(None),
+    user=Depends(get_current_user),
 ):
-    """Get all appointments"""
+    """Appointments the caller is allowed to see (their own, scoped by role)."""
     try:
         appointments = []
-        query = {}
-        if patient_id:
+        query = _scoped_filters(user)
+        # A doctor may narrow to one patient; a patient cannot widen past themselves.
+        if patient_id and user.get("role") == "doctor":
+            # ...and only to a patient this doctor actually has a visit with. Asking
+            # about a stranger is answered with an empty list rather than a 403, so
+            # the response cannot be used to confirm that a patient id exists.
+            linked = await appointment_collection.find_one(
+                {"doctor_id": user["_id"], "patient_id": patient_id}, {"_id": 1}
+            )
+            if not linked:
+                return []
             query["patient_id"] = patient_id
-        if doctor_id:
+        if doctor_id and user.get("role") == "doctor":
+            # Never let a doctor re-point the scope at a colleague's schedule.
+            if doctor_id != user["_id"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. A doctor may only read their own schedule.",
+                )
             query["doctor_id"] = doctor_id
         if appointment_status:
             query["status"] = appointment_status
@@ -116,6 +166,10 @@ async def read_appointments(
 
             appointments.append(appointment)
         return appointments
+    except HTTPException:
+        # `_scoped_filters` and the widening guards raise these; the generic
+        # handler below would otherwise turn a deliberate 403 into a 500.
+        raise
     except Exception as e:
         print(f"Error fetching appointments: {e}")
         raise HTTPException(
@@ -125,7 +179,7 @@ async def read_appointments(
 
 
 @router.get("/{appointment_id}")
-async def get_appointment(appointment_id: str):
+async def get_appointment(appointment_id: str, user=Depends(get_current_user)):
     """Get a specific appointment by ID"""
     try:
         # Try ObjectId first
@@ -136,6 +190,11 @@ async def get_appointment(appointment_id: str):
             appointment = await appointment_collection.find_one({"_id": appointment_id})
         
         if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Appointment with ID {appointment_id} not found"
+            )
+        if not _can_access(appointment, user):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Appointment with ID {appointment_id} not found"
@@ -293,7 +352,11 @@ async def create_appointment(
         )
 
 @router.patch("/{appointment_id}")
-async def update_appointment(appointment_id: str, appointment_update: UpdateAppointmentModel):
+async def update_appointment(
+    appointment_id: str,
+    appointment_update: UpdateAppointmentModel,
+    user=Depends(get_current_user),
+):
     """
     Update an appointment by ID.
     Only provided fields will be updated.
@@ -307,6 +370,26 @@ async def update_appointment(appointment_id: str, appointment_update: UpdateAppo
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No fields provided for update"
             )
+
+        # Only the doctor on the visit may edit it, and a patient may do exactly one
+        # thing to their own visit: cancel it. Anything else stays server-side.
+        existing = await appointment_collection.find_one({"_id": appointment_id})
+        if not existing:
+            try:
+                existing = await appointment_collection.find_one({"_id": ObjectId(appointment_id)})
+            except Exception:
+                existing = None
+        if not existing or not _can_access(existing, user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Appointment with ID {appointment_id} not found"
+            )
+        if user.get("role") == "patient":
+            if set(update_data) != {"status"} or update_data.get("status") != "cancelled":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="A patient can only cancel their own appointment.",
+                )
 
         # Define IST timezone
         ist_offset = timedelta(hours=5, minutes=30)
@@ -574,6 +657,8 @@ async def finalize_recording(appointment_id: str, request: FinalizeRecordingRequ
         
         # Invoke the tool
         # extracted_info is a Dict
+        from src.services.tools import extract_clinical_info, _save_to_mongo_impl
+
         extracted_info = extract_clinical_info.invoke({"document_text": document_text})
         
         # Save to Mongo
@@ -660,6 +745,12 @@ async def generate_appointment_diagnosis(
             )
         
         # Step 1: Generate diagnoses using Med42 (plain text)
+        from src.services.diagnosis_generator import (
+            build_diagnosis_context,
+            convert_med42_to_structured_json,
+            generate_diagnosis,
+        )
+
         print(f"🩺 Step 1: Generating diagnoses using Med42...")
         diagnosis_text = await generate_diagnosis(
             patient_id=str(patient_id),
@@ -722,6 +813,8 @@ async def upload_diagnosis_files(
     doctor: dict = Depends(check_doctor_exists)
 ):
     """Upload multiple diagnosis files to R2"""
+    from src.r2 import upload_to_r2
+
     try:
         uploaded_files = []
         

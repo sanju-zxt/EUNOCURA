@@ -43,8 +43,15 @@ async def get_user_by_email(email: str):
 
 async def create_user(user: PatientCreate | DoctorCreate):
     user_copy = user.model_dump()
+    # `hashed_password` is server-owned: whatever the client sent is discarded.
+    user_copy.pop("hashed_password", None)
     user_copy["hashed_password"] = get_password_hash(user_copy["password"])
     user_copy.pop("password")
+    # Mongo stores datetimes, not dates; convert here so no route has to mutate the
+    # validated model (doing that emitted Pydantic serialisation warnings on signup).
+    for key, value in list(user_copy.items()):
+        if isinstance(value, date) and not isinstance(value, datetime):
+            user_copy[key] = datetime.combine(value, datetime.min.time())
     new_user = await user_collection.insert_one(user_copy)
     return new_user
 
@@ -107,7 +114,7 @@ async def patient_signup(
             detail="User with this email already exists",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    data.date_of_birth = datetime.combine(data.date_of_birth, datetime.min.time())
+    # create_user() converts date -> datetime for Mongo, so the model is left untouched.
     new_patient = await create_user(data)
     access_token_expires=timedelta(
         minutes=float(

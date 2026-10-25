@@ -8,7 +8,10 @@ class UserBase(BaseModel):
     full_name: str
     phone: str
     gender: Literal["male", "female", "other"]
-    hashed_password: str
+    # Server-owned. Declared here because it is stored on the same document, but a
+    # client never sends it: `create_user()` hashes the plain `password` and always
+    # overwrites this value. It used to be required, which made valid signups 422.
+    hashed_password: str = ""
 
 # ------------------ Medical History ------------------
 class MedicalHistoryModel(BaseModel):
