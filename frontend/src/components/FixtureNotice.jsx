@@ -9,7 +9,7 @@ import { FlaskConical } from 'lucide-react';
  * working backend, so every fixture-backed screen says so, in the UI, on the
  * screen itself — not only in the README.
  */
-const FixtureNotice = ({ feature, source = 'src/data/dummyData.js', note }) => (
+const FixtureNotice = ({ feature, source = 'src/data/previewDietPlan.js', note }) => (
     <div className="mb-6 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex items-start gap-3">
         <FlaskConical className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
         <div className="text-sm">

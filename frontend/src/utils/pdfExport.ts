@@ -1,14 +1,14 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import type { RefObject } from 'react';
 
 /**
- * Export a React component as PDF by capturing it as an image
- * @param elementRef - React ref to the HTML element to capture
- * @param filename - Name for the PDF file (without .pdf extension)
- * @param options - Optional configuration
+ * Export a React component as PDF by capturing it as an image.
+ *
+ * html2canvas and jsPDF are ~770 kB together and only matter the moment someone
+ * clicks "download". They are imported inside the function so opening a chart or a
+ * patient record does not ship either library to the browser.
  */
 export const exportComponentAsPDF = async (
-  elementRef: React.RefObject<HTMLElement>,
+  elementRef: RefObject<HTMLElement | null>,
   filename: string,
   options?: { 
     width?: number; 
@@ -21,6 +21,11 @@ export const exportComponentAsPDF = async (
     console.error('Element ref is not available');
     return;
   }
+
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
 
   const element = elementRef.current;
   const padding = options?.padding || 20;
@@ -96,7 +101,7 @@ export const exportComponentAsPDF = async (
 
     // Save PDF
     pdf.save(`${filename}.pdf`);
-    console.log(`✅ PDF exported: ${filename}.pdf`);
+    console.log(`PDF exported: ${filename}.pdf`);
   } catch (error) {
     console.error('Error exporting PDF:', error);
     throw error;

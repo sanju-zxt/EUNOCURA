@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Heart, Pill, MessageCircle, Apple, Bell, Home, LogOut, User, Calendar, CalendarPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '../utils/api';
 import DarkModeToggle from '../components/DarkModeToggle';
 import PatientDashboard from '../components/patient/PatientDashboard';
 import MyAppointments from '../components/patient/MyAppointments';
@@ -15,12 +16,42 @@ const PatientPortal = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const patientId = user?._id || user?.id;
+  const [doctor, setDoctor] = useState(null);
+  const [doctorState, setDoctorState] = useState('loading');
+
+  // The sidebar used to name a doctor for every account. Ask the real appointment
+  // list who this patient is actually seeing, and say nothing when nobody is assigned.
+  useEffect(() => {
+    let cancelled = false;
+    if (!patientId) {
+      setDoctorState('empty');
+      return () => { cancelled = true; };
+    }
+    (async () => {
+      setDoctorState('loading');
+      const res = await apiRequest(`/appointments/?patient_id=${encodeURIComponent(patientId)}`);
+      if (cancelled) return;
+      if (!res.success || !Array.isArray(res.data)) {
+        setDoctorState('error');
+        return;
+      }
+      const upcoming = res.data
+        .filter((a) => ['scheduled', 'in_progress', 'paused'].includes(a?.status))
+        .sort((a, b) => String(a?.appointment_date || '').localeCompare(String(b?.appointment_date || '')));
+      const found = upcoming.map((a) => a?.doctor).find((d) => d && d.name) || null;
+      setDoctor(found);
+      setDoctorState(found ? 'ready' : 'empty');
+    })();
+    return () => { cancelled = true; };
+  }, [patientId]);
 
   const navItems = [
     { path: '/patient', icon: Home, label: 'Dashboard', exact: true },
     { path: '/patient/appointments', icon: Calendar, label: 'My Appointments' },
     { path: '/patient/book-appointment', icon: CalendarPlus, label: 'Book Appointment' },
     { path: '/patient/medications', icon: Pill, label: 'Medications' },
+    { path: '/patient/diet', icon: Apple, label: 'Care Plan' },
     { path: '/patient/chatbot', icon: MessageCircle, label: 'Health Assistant' },
     { path: '/patient/notifications', icon: Bell, label: 'Notifications' },
   ];
@@ -86,14 +117,32 @@ const PatientPortal = () => {
             ))}
           </nav>
 
-          {/* Quick Info */}
+          {/* Quick Info — the doctor on this patient's next appointment, or nothing. */}
           <div className="p-4 mt-auto mb-4 mx-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-700 dark:to-gray-600 rounded-xl border border-green-100 dark:border-gray-600 flex-shrink-0">
             <div className="flex items-center space-x-2 mb-2">
               <User className="w-4 h-4 text-green-600 dark:text-green-400" />
               <p className="text-xs font-semibold text-green-900 dark:text-green-300">Your Doctor</p>
             </div>
-            <p className="text-sm font-bold text-green-900 dark:text-white">Dr. Priya Mehta</p>
-            <p className="text-xs text-green-700 dark:text-gray-300">Cardiology</p>
+            {doctorState === 'ready' && doctor ? (
+              <>
+                <p className="text-sm font-bold text-green-900 dark:text-white">{doctor.name}</p>
+                <p className="text-xs text-green-700 dark:text-gray-300">{doctor.specialization || 'Care team'}</p>
+              </>
+            ) : doctorState === 'loading' ? (
+              <div className="space-y-1.5" aria-busy="true" aria-label="Loading your care team">
+                <div className="h-3.5 w-24 rounded bg-green-200/70 dark:bg-gray-500/50 animate-pulse" />
+                <div className="h-3 w-16 rounded bg-green-200/50 dark:bg-gray-500/40 animate-pulse" />
+              </div>
+            ) : doctorState === 'error' ? (
+              <p className="text-xs text-green-800 dark:text-gray-300">Could not load your care team.</p>
+            ) : (
+              <>
+                <p className="text-xs text-green-800 dark:text-gray-300">No doctor assigned yet.</p>
+                <Link to="/patient/book-appointment" className="text-xs font-semibold text-green-700 dark:text-green-300 underline">
+                  Book an appointment
+                </Link>
+              </>
+            )}
           </div>
         </aside>
 

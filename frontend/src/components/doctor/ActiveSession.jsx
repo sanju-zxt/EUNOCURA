@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Square, Clock, CheckCircle, Upload, FileText, Brain, Download, Eye, Plus, Mic, FileCheck, TestTube2, Sparkles, MessageSquare, Loader, Calendar, Stethoscope, Activity } from 'lucide-react';
-import { ACTIVITY_TYPES } from '../../data/appointmentData';
+import { ACTIVITY_TYPES } from '../../data/activityTypes';
 import { apiRequest } from '../../utils/api';
 import DiagnosisDashboard from '../diagnosis/Main';
 import PDFViewer from './PDFViewer';

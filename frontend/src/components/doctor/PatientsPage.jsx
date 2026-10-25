@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Search, User, Calendar, Download, Eye, Play, Upload, Clock, Stethoscope, Activity, FileText, Sparkles } from 'lucide-react';
-import { getPatientById } from '../../data/appointmentData';
+import { Search, User, Calendar, Play, Upload, Clock, Stethoscope, Activity } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
 import NewAppointmentModal from './NewAppointmentModal';
 import AppointmentHistoryCard from './AppointmentHistoryCard';
-import DiagnosisDashboard from '../diagnosis/Main';
+import PatientClinicalPanel from './PatientClinicalPanel';
 
 const PatientsPage = () => {
     const { user } = useAuth();
@@ -124,13 +123,13 @@ const PatientsPage = () => {
             const response = await apiRequest(endpoint);
             if (response.success) {
                 const mapped = response.data.map(p => ({
-                    id: p._id,
+                    id: p.id || p._id,
                     name: p.full_name,
                     age: calculateAge(p.date_of_birth),
                     gender: p.gender || 'Unknown',
                     bloodGroup: p.blood_group,
                     phone: p.phone,
-                    registeredDate: getRegistrationDateFromId(p._id),
+                    registeredDate: getRegistrationDateFromId(p.id || p._id),
                     totalAppointments: 0,
                     lastVisit: null
                 }));
@@ -175,13 +174,13 @@ const PatientsPage = () => {
                     if (response.success && response.data) {
                         const p = response.data;
                         const mappedPatient = {
-                            id: p._id,
+                            id: p.id || p._id,
                             name: p.full_name,
                             age: calculateAge(p.date_of_birth),
                             gender: p.gender || 'Unknown',
                             bloodGroup: p.blood_group,
                             phone: p.phone,
-                            registeredDate: getRegistrationDateFromId(p._id),
+                            registeredDate: getRegistrationDateFromId(p.id || p._id),
                             totalAppointments: 0,
                             lastVisit: null
                         };
@@ -189,14 +188,10 @@ const PatientsPage = () => {
                         setSearchQuery(mappedPatient.name);
                         fetchAppointments(patientId);
                     } else {
-                        // 3. Fallback to dummy data
-                        const patient = getPatientById(patientId);
-                        if (patient) {
-                            setSelectedPatient(patient);
-                            setSearchQuery(patient.name);
-                            // Also try to fetch appointments for dummy patient if needed, though likely wont work with real backend
-                            fetchAppointments(patientId);
-                        }
+                        // No fixture fallback: an unknown patient id means no patient.
+                        // Showing a made-up record here was the last place the doctor
+                        // portal could display data that never existed.
+                        console.warn('No patient found for id', patientId);
                     }
                 } catch (e) {
                     console.error("Error loading patient from URL", e);
@@ -355,6 +350,9 @@ const PatientsPage = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Prescriptions and lab results, with the write actions that feed them */}
+                    <PatientClinicalPanel patient={selectedPatient} />
 
                     {/* Active Appointments Section */}
                     {patientAppointments.filter(a => ['in_progress', 'paused'].includes(a.status)).length > 0 && (
