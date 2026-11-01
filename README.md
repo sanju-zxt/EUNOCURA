@@ -17,11 +17,7 @@ otherwise                   →  dropped, with the reason printed
 
 ## 0. Built on, and what we changed
 
-This is a fork. The upstream project is **EUNOCURA**, published as **MedAI**
-(<https://github.com/Prathameshworks247/MedAI>). It gave us the FastAPI app, the
-MongoDB models and the React doctor portal. Those files keep their original
-authorship and their MIT notice (`LICENSE-MIT-upstream`); `git log` shows the
-history we did not write.
+
 
 Our delta, in the order it matters:
 
