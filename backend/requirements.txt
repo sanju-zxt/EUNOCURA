@@ -44,7 +44,7 @@ pymupdf==1.28.2
 Pillow==12.3.0
 
 # --- storage (optional cloud bucket; local disk is the default)
-boto3==1.43.118
+boto3==1.43.123
 
 # --- auth / util
 pyjwt==2.14.0
