@@ -27,7 +27,7 @@
     "@capacitor/status-bar": "^8.0.4",
     "@capacitor/toast": "^8.0.1",
     "@tailwindcss/typography": "^0.5.19",
-    "framer-motion": "^12.26.2",
+    "framer-motion": "^14.9.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "lucide-react": "^0.294.0",
