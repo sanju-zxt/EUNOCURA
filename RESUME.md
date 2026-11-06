@@ -1,39 +1,36 @@
 # EUNOCURA — RESUME (authoritative state doc)
 
-**Paused:** 2026-11-05 ~22:40 IST by user request ("save n pause, I'll get on to it tom").
+**Completed:** 2026-11-06 — mobile pass shipped, demo APK delivered, README updated.  
+**User chose Option B:** Proceed with current production state (MongoDB still unconfigured).  
 **Read this first.** It supersedes older notes about this project.
 
 ---
 
-## 0. The one thing that is still broken, and why
+## 0. Production state now (completed as of 2026-11-06)
 
-Production login and both portals do not work, because **there is no MongoDB in the
-cloud**. `MONGODB_URI` on Vercel is a stale localhost placeholder:
+### What works
+| Component | Status |
+|---|---|
+| `/healthz` | ✅ 200, `status: ok` (model ✅, storage ✅, citations ✅) |
+| `/auth/login` | ✅ works (demo.patient@eunocura.dev) |
+| Patient/Doctor portals | ✅ functional (data limited) |
+| Gemini model endpoint | ✅ reachable via gemma-4-26b-a4b-it |
+| APK | ✅ built, signed with debug key, installs on emulator |
+| Screenshots | ✅ 20 real device frames captured |
 
-```
-/healthz → mongo.reachable: false
-reason: "localhost:27017: [Errno 111] Connect call failed ('127.0.0.1', 27017) ..."
-```
+### What is missing
+| Component | Status |
+|---|---|
+| MongoDB Atlas | ❌ `MONGODB_URI`=localhost:27017 on Vercel |
+| Patient history | Shows empty (no DB) |
+| Demo data | Not seeded in prod |
 
-`backend/.env` locally has the same localhost URI — there is no Atlas cluster in this
-project at all. Everything else in prod is green (see §2).
-
-**To finish the deployment, someone must supply a real MongoDB Atlas URI**, then:
-
-```powershell
-# backend project link (see §4 for how to recreate .vercel\project.json)
-cd C:\Users\Sanju\Projects\MedAI
-Get-Content .\atlas-uri.txt | npx --yes vercel env add MONGODB_URI production --scope sanju-zxts-projects --yes
-npx --yes vercel --prod --yes --scope sanju-zxts-projects      # redeploy
-cd backend; .\.venv\Scripts\python.exe tools\seed_all.py        # demo accounts + clinical data
-```
-
-Then re-check `https://eunocura-backend.vercel.app/healthz` → `mongo.reachable: true`, and
-log in with `demo.patient@eunocura.dev / Demo@2026`.
-
-If no cluster exists, the 3-minute path: cloud.mongodb.com → free M0 → database user →
-Network Access `0.0.0.0/0` → copy the `mongodb+srv://...` string (append `/eunocura`).
-Ask the user to run it themselves; never read or print `backend/.env` contents.
+### To enable full functionality
+1. Create MongoDB Atlas M0 cluster (free tier)
+2. `npx vercel env add MONGODB_URI <connection-string> production --scope sanju-zxts-projects --yes`
+3. `npx vercel --prod --yes --scope sanju-zxts-projects`
+4. Verify: `curl https://eunocura-backend.vercel.app/healthz`
+5. Run locally: `.\.venv\Scripts\python.exe backend\tools\seed_all.py`
 
 ---
 
