@@ -1,5 +1,7 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
+import { ArrowDown } from "lucide-react";
+import { useIsMobile } from "../mobile/useIsMobile";
 
 interface ReasoningNode {
     id: string;
@@ -20,6 +22,7 @@ interface ClinicalReasoningFlowProps {
 }
 
 export function ClinicalReasoningFlow({ nodes, connections }: ClinicalReasoningFlowProps) {
+    const isMobile = useIsMobile();
     const getNodeStyle = (type: ReasoningNode["type"]) => {
         switch (type) {
             case "input":
@@ -118,6 +121,89 @@ export function ClinicalReasoningFlow({ nodes, connections }: ClinicalReasoningF
         return (
             <div className="bg-card rounded-xl shadow-sm border p-6 min-h-[200px] flex items-center justify-center text-muted-foreground">
                 No clinical flow data available
+            </div>
+        );
+    }
+
+    // An 800px-wide node graph is the right shape on a desktop and the wrong one
+    // on a phone: panning a diagram to read a sentence is not a mobile layout.
+    // Below the breakpoint the same data becomes a vertical trace in level order:
+    // nodes stack full-width, the connector runs down a numbered rail, and an
+    // edge is only drawn between two steps when the graph really has one.
+    if (isMobile) {
+        const ordered = [...layoutNodes].sort((a: any, b: any) => a.level - b.level || a.x - b.x);
+
+        // The rail is a reading-order cue, so it must not imply a link the data
+        // does not contain: a segment is drawn only where `connections` says the
+        // next step follows this one.
+        const linkedToNext = (index: number) => {
+            const current = ordered[index];
+            const next = ordered[index + 1];
+            if (!current || !next) return false;
+            return connections.some((c) => c.from === current.id && c.to === next.id);
+        };
+
+        return (
+            <div className="relative overflow-hidden rounded-xl border bg-card shadow-lg">
+                <div className="flex items-center gap-2 border-b bg-muted/30 p-3">
+                    <span className="text-lg" aria-hidden="true">🧠</span>
+                    <h3 className="min-w-0 text-base font-bold break-words">Clinical Reasoning Chain</h3>
+                </div>
+                <ol className="p-3">
+                    {ordered.map((node: any, idx: number) => {
+                        const outgoing = connections.filter((c) => c.from === node.id);
+                        const showConnector = linkedToNext(idx);
+                        return (
+                            <motion.li
+                                key={node.id}
+                                initial={{ opacity: 0, y: 12 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.03 }}
+                                className="flex gap-2.5"
+                            >
+                                {/* Vertical rail: step number, then the connector. */}
+                                <div className="flex w-6 shrink-0 flex-col items-center" aria-hidden="true">
+                                    <span className="mt-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-[11px] font-bold tabular-nums">
+                                        {idx + 1}
+                                    </span>
+                                    {showConnector && <span className="mt-1 w-px flex-1 bg-border" />}
+                                </div>
+
+                                <div className="min-w-0 flex-1 pb-3">
+                                    <div className={`rounded-lg border p-3 shadow-sm ${getNodeStyle(node.type)}`}>
+                                        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-black/5 pb-2">
+                                            <span className="text-base" aria-hidden="true">{node.icon}</span>
+                                            <span className="min-w-0 font-mono text-[11px] font-bold uppercase tracking-wider opacity-80 break-words">
+                                                {String(node.id ?? '').replace(/_/g, ' ')}
+                                            </span>
+                                            <span className="ml-auto shrink-0 rounded bg-black/5 px-1.5 py-0.5 text-[11px] font-semibold opacity-70">
+                                                level {node.level + 1}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-medium leading-snug opacity-90 break-words">{node.label}</p>
+                                        {outgoing.length > 0 && (
+                                            <ul className="mt-2 space-y-1">
+                                                {outgoing.map((edge, edgeIndex) => (
+                                                    <li
+                                                        key={`${edge.from}-${edge.to}-${edgeIndex}`}
+                                                        className="flex items-start gap-1 text-xs leading-snug opacity-80"
+                                                    >
+                                                        <ArrowDown className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                                                        <span className="min-w-0 break-words">
+                                                            <span className="font-semibold uppercase tracking-wide">next</span>{' '}
+                                                            {String(edge.to ?? '').replace(/_/g, ' ')}
+                                                            {edge.label ? ` — ${edge.label}` : ''}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                </div>
+                            </motion.li>
+                        );
+                    })}
+                </ol>
             </div>
         );
     }

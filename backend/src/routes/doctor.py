@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from src.db import user_collection, chat_history_collection
+from src.config import _writable_dir
 from datetime import datetime
 from bson import ObjectId
 from src.middlewares.auth import check_doctor_exists
@@ -29,10 +30,13 @@ MAX_DOCTOR_PDF_BYTES = 25 * 1024 * 1024
 
 
 def _pdf_storage_dir() -> Path:
-    """Return the same persistent PDF directory used by the existing routes."""
-    directory = Path(__file__).resolve().parents[2] / "storage" / "pdfs"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
+    """Return the directory doctor-uploaded PDFs live in.
+
+    Same path as before on a writable machine; on a read-only host (Vercel) it
+    falls back to the platform temp dir instead of raising on `mkdir`, so the
+    upload route answers with a real file rather than a 500.
+    """
+    return _writable_dir(Path(__file__).resolve().parents[2] / "storage" / "pdfs")
 
 
 def _fallback_pdf_search(document_id: str, question: str, limit: int = 5) -> list[dict]:
@@ -685,7 +689,7 @@ async def get_pdf_file(
     """
     try:
         # Construct file path
-        storage_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "storage", "pdfs")
+        storage_dir = str(_pdf_storage_dir())
         file_path = os.path.join(storage_dir, f"{document_id}.pdf")
         
         if not os.path.exists(file_path):

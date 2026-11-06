@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, MessageSquare, Plus, ArrowLeft, History, Trash2, Upload, FileText, Loader, Eye } from 'lucide-react';
-import { apiRequest, auditCitations } from '../../utils/api';
+import { apiRequest, auditCitations, getApiBaseUrl } from '../../utils/api';
 import PDFViewer from './PDFViewer';
 import CitationPanel from './CitationPanel';
+import MobileSheet from '../mobile/MobileSheet';
 import ReactMarkdown from "react-markdown";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 function formatApiErrorDetail(detail) {
     if (detail == null) return null;
@@ -96,6 +96,52 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
             setTimeout(() => inputRef.current?.focus(), 100);
         }
     }, [isOpen, isHistoryOpen]);
+
+    // The composer is a textarea on both shapes: it grows with the message up to
+    // the cap in its class list, so a long clinical question stays readable
+    // instead of scrolling sideways inside a one-line field.
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight}px`;
+    }, [input, isOpen, isHistoryOpen]);
+
+    // Enter sends, Shift+Enter breaks the line - but only when the IME is not
+    // mid-composition. A Hindi/Japanese keyboard uses Enter to accept a
+    // candidate; sending there would eat the word the doctor is still typing.
+    const handleComposerKeyDown = (event) => {
+        if (event.key !== 'Enter') return;
+        if (event.isComposing || event.nativeEvent?.isComposing) return;
+        if (event.shiftKey) return;
+        event.preventDefault();
+        handleSend(event);
+    };
+
+    // Opening the keyboard shrinks the viewport; the newest message must stay in
+    // view rather than being pushed under the composer.
+    const pinToNewest = () => {
+        if (typeof window === 'undefined') return;
+        window.requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ block: 'end' });
+        });
+    };
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
+        const viewport = typeof window !== 'undefined' ? window.visualViewport : null;
+        if (!viewport) return undefined;
+        let timer = null;
+        const onViewportResize = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(pinToNewest, 60);
+        };
+        viewport.addEventListener('resize', onViewportResize);
+        return () => {
+            viewport.removeEventListener('resize', onViewportResize);
+            window.clearTimeout(timer);
+        };
+    }, [isOpen]);
 
     // Debug: Log when PDF file changes
     useEffect(() => {
@@ -314,7 +360,7 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const response = await fetch(`${API_BASE_URL}/doctors/pdf/${documentId}`, {
+            const response = await fetch(`${getApiBaseUrl()}/doctors/pdf/${documentId}`, {
                 method: 'GET',
                 headers: headers
             });
@@ -390,7 +436,7 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const response = await fetch(`${API_BASE_URL}/doctors/upload-pdf`, {
+            const response = await fetch(`${getApiBaseUrl()}/doctors/upload-pdf`, {
                 method: 'POST',
                 body: formData,
                 headers: headers
@@ -571,380 +617,371 @@ const ChatModal = ({ isOpen, onClose, appointmentId, patientId, patientName, rea
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-opacity-70">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col transition-colors duration-200">
-                {/* Header */}
-                <div className="relative flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-sm">
-                    <div className="flex items-center space-x-4">
-                        {isHistoryOpen ? (
-                            <button
-                                onClick={() => setIsHistoryOpen(false)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
-                            >
-                                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                            </button>
-                        ) : (
-                            <button
-                                onClick={() => setIsHistoryOpen(true)}
-                                className="p-2.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center space-x-2 group"
-                                title="View chat history"
-                            >
-                                <History className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 hidden sm:inline transition-colors">History</span>
-                            </button>
-                        )}
-                        <div className="flex items-center space-x-3">
-                            {!isHistoryOpen && (
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 dark:from-primary-600 dark:to-primary-700 flex items-center justify-center shadow-md">
-                                    <Bot className="w-5 h-5 text-white" />
-                                </div>
-                            )}
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-                                    {isHistoryOpen ? 'Chat History' : (readOnly ? 'Chat Archive' : 'AI Assistant')}
-                                </h2>
-                                {!isHistoryOpen && patientName && (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{patientName}</p>
-                                )}
+    // The dialog is the frozen MobileSheet: a bottom sheet on a phone, a centred
+    // dialog from `md` up. The transcript scrolls inside the sheet body and the
+    // composer sits in the sheet footer, so the on-screen keyboard can never
+    // cover what the doctor is typing.
+    const sheetTitle = isHistoryOpen ? 'Chat History' : readOnly ? 'Chat Archive' : 'AI Assistant';
+    const sheetDescription = !isHistoryOpen && patientName ? patientName : undefined;
+
+    const toolbar = (
+        <div className="sticky top-0 z-10 -mx-5 -mt-4 mb-3 flex items-center gap-2 border-b border-gray-100 bg-white px-5 py-2 dark:border-gray-700 dark:bg-gray-800">
+            {isHistoryOpen ? (
+                <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(false)}
+                    className="tap -ml-2 flex items-center justify-center rounded-xl px-2 text-gray-600 transition-all duration-200 hover:bg-gray-100 active:scale-95 dark:text-gray-400 dark:hover:bg-gray-700"
+                    title="Back to conversation"
+                    aria-label="Back to conversation"
+                >
+                    <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(true)}
+                    className="tap -ml-2 flex items-center justify-center gap-2 rounded-xl px-2 text-gray-600 transition-all duration-200 hover:bg-gray-100 active:scale-95 dark:text-gray-400 dark:hover:bg-gray-700"
+                    title="View chat history"
+                    aria-label="View chat history"
+                >
+                    <History className="w-5 h-5" aria-hidden="true" />
+                    <span className="hidden text-sm font-medium sm:inline">History</span>
+                </button>
+            )}
+            <div className="flex-1" />
+            {!readOnly && (
+                <button
+                    type="button"
+                    onClick={handleNewChat}
+                    className="tap flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 active:scale-95 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                    aria-label="New Chat"
+                >
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">New Chat</span>
+                </button>
+            )}
+        </div>
+    );
+
+    const historyList = (
+        <div className="space-y-1">
+            {chatHistories.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    <MessageSquare className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" aria-hidden="true" />
+                    <p>No chat history</p>
+                    <p className="text-sm">Start a new conversation</p>
+                </div>
+            ) : (
+                chatHistories.map((chat) => (
+                    <div
+                        key={chat.id}
+                        onClick={() => handleLoadChat(chat.id)}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors group ${currentChatId === chat.id
+                            ? 'bg-primary-100 dark:bg-primary-900/30 border border-primary-300 dark:border-primary-600'
+                            : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                            }`}
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                    {chat.title}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {new Date(chat.updatedAt).toLocaleDateString()}
+                                </p>
                             </div>
+                            {!readOnly && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteChat(chat.id, e)}
+                                    className="tap flex flex-shrink-0 items-center justify-center rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
+                                    title="Delete chat"
+                                    aria-label={`Delete ${chat.title || 'chat'}`}
+                                >
+                                    <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
+                                </button>
+                            )}
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                        {!isHistoryOpen && !readOnly && (
-                            <button
-                                onClick={handleNewChat}
-                                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>New Chat</span>
-                            </button>
-                        )}
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
-                            title="Close"
-                        >
-                            <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        </button>
-                    </div>
-                </div>
+                ))
+            )}
+        </div>
+    );
 
-                {/* Content Area */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Chat History Sidebar */}
-                    {isHistoryOpen && (
-                        <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-900">
-                            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                                {!readOnly && (
-                                    <button
-                                        onClick={handleNewChat}
-                                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-600 transition-colors"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        <span>New Chat</span>
-                                    </button>
-                                )}
+    const transcript = (
+        <div className="space-y-4">
+            {messages.map((message, index) => (
+                <div
+                    key={index}
+                    className={`flex items-start gap-2.5 ${message.role === 'user' ? 'flex-row-reverse' : ''
+                        }`}
+                >
+                    <div
+                        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'assistant'
+                            ? 'bg-green-100 dark:bg-green-900/30'
+                            : 'bg-blue-100 dark:bg-blue-900/30'
+                            }`}
+                    >
+                        {message.role === 'assistant' ? (
+                            <Bot className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+                        ) : (
+                            <User className="w-5 h-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                        )}
+                    </div>
+                    <div className={`flex flex-col min-w-0 max-w-full ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div
+                            className={`max-w-[85%] sm:max-w-lg p-3 rounded-lg break-words ${message.role === 'assistant'
+                                ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                                : 'bg-blue-600 dark:bg-blue-500 text-white'
+                                } ${message.error ? 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200' : ''}`}
+                        >
+                            {/* Markdown cannot be allowed to push the bubble wider than
+                                the phone: long code blocks scroll, images fit. */}
+                            <div className="min-w-0 break-words [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+                                <ReactMarkdown>{message.content}</ReactMarkdown>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-2">
-                                {chatHistories.length === 0 ? (
-                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        <MessageSquare className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                                        <p>No chat history</p>
-                                        <p className="text-sm">Start a new conversation</p>
-                                    </div>
-                                ) : (
+                            {Array.isArray(message.citations) && message.citations.length > 0 ? (
+                                <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600">
+                                    <p className="text-xs font-semibold mb-1 dark:text-gray-300">Sources:</p>
                                     <div className="space-y-1">
-                                        {chatHistories.map((chat) => (
+                                        {message.citations.map((citation, idx) => (
                                             <div
-                                                key={chat.id}
-                                                onClick={() => handleLoadChat(chat.id)}
-                                                className={`p-3 rounded-lg cursor-pointer transition-colors group ${currentChatId === chat.id
-                                                    ? 'bg-primary-100 dark:bg-primary-900/30 border border-primary-300 dark:border-primary-600'
-                                                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                key={idx}
+                                                onClick={async () => {
+                                                    const docId = citation.document_id || pdfDocumentId;
+                                                    console.log('Citation clicked:', {
+                                                        docId,
+                                                        hasPdfFile: !!uploadedPdfFile,
+                                                        pageNumber: citation.page_number,
+                                                        citation
+                                                    });
+
+                                                    if (!docId) {
+                                                        console.warn('No document ID available for citation');
+                                                        return;
+                                                    }
+
+                                                    let fileToUse = uploadedPdfFile;
+
+                                                    // If we have a docId but no file, or a different file is loaded, load the correct one
+                                                    if (!fileToUse || (pdfDocumentId && pdfDocumentId !== docId)) {
+                                                        console.log('Loading PDF for citation:', docId);
+                                                        fileToUse = await loadPdfFromBackend(docId);
+                                                        if (fileToUse) {
+                                                            setPdfDocumentId(docId);
+                                                        }
+                                                    }
+
+                                                    if (fileToUse && citation.page_number) {
+                                                        setViewerPage(citation.page_number);
+                                                        setViewerCoordinates(citation.coordinates || null);
+                                                        // Pass the chunk text for accurate highlighting (prefer full text)
+                                                        setViewerChunkText(citation.text || citation.text_preview || null);
+                                                        setShowPdfViewer(true);
+                                                    }
+                                                }}
+                                                className={`text-xs bg-white/50 dark:bg-gray-800/50 rounded p-2 transition-colors border border-transparent break-words ${(citation.document_id || pdfDocumentId) && citation.page_number
+                                                    ? 'hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600'
+                                                    : 'text-gray-600 dark:text-gray-400'
                                                     }`}
+                                                title={(citation.document_id || pdfDocumentId) && citation.page_number ? "Click to view in PDF" : "PDF not available"}
                                             >
-                                                <div className="flex items-start justify-between">
+                                                <div className="flex items-start justify-between gap-2">
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                            {chat.title}
+                                                        <p className="font-semibold flex items-center dark:text-gray-200">
+                                                            {loadingPdfId === (citation.document_id || pdfDocumentId) ? (
+                                                                <Loader className="w-3 h-3 mr-1 flex-shrink-0 animate-spin text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                                                            ) : (
+                                                                <FileText className="w-3 h-3 mr-1 flex-shrink-0" aria-hidden="true" />
+                                                            )}
+                                                            <span className="truncate">
+                                                                {citation.page_number ? `Page ${citation.page_number}` : 'Citation'}
+                                                            </span>
                                                         </p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                            {new Date(chat.updatedAt).toLocaleDateString()}
-                                                        </p>
+                                                        {citation.text_preview && (
+                                                            <p className="text-gray-600 dark:text-gray-400 break-words mt-1 line-clamp-2">
+                                                                {citation.text_preview}
+                                                            </p>
+                                                        )}
                                                     </div>
-                                                    {!readOnly && (
-                                                        <button
-                                                            onClick={(e) => handleDeleteChat(chat.id, e)}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all"
-                                                        >
-                                                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                                                        </button>
+                                                    {(citation.document_id || pdfDocumentId) && citation.page_number && (
+                                                        <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
                                                     )}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            ) : message.role === 'assistant' && message.intent === 'pdf_query' ? (
+                                <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 italic">No citations found for this answer.</p>
+                                </div>
+                            ) : null}
                         </div>
-                    )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {message.timestamp
+                                ? new Date(message.timestamp).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })
+                                : ''}
+                        </p>
+                    </div>
+                </div>
+            ))}
+            {isLoading && (
+                <div className="flex items-start gap-2.5">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+                    </div>
+                    <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
+                        <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                            <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                            <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <div ref={messagesEndRef} />
+        </div>
+    );
 
-                    {/* Chat Messages Area */}
-                    {!isHistoryOpen && (
-                        <div className="flex-1 flex flex-col">
-                            {/* Messages */}
-                            <div className="flex-1 overflow-y-auto">
-                                <div className="max-w-4xl mx-auto px-6 py-4 space-y-4">
-                                    {messages.map((message, index) => (
-                                        <div
-                                            key={index}
-                                            className={`flex items-start space-x-3 ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                                                }`}
-                                        >
-                                            <div
-                                                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'assistant'
-                                                    ? 'bg-green-100 dark:bg-green-900/30'
-                                                    : 'bg-blue-100 dark:bg-blue-900/30'
-                                                    }`}
-                                            >
-                                                {message.role === 'assistant' ? (
-                                                    <Bot className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                                ) : (
-                                                    <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                                )}
-                                            </div>
-                                            <div className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                                <div
-                                                    className={`max-w-lg p-3 rounded-lg ${message.role === 'assistant'
-                                                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                                                        : 'bg-blue-600 dark:bg-blue-500 text-white'
-                                                        } ${message.error ? 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200' : ''}`}
-                                                >
-                                                    <ReactMarkdown>{message.content}</ReactMarkdown>
-                                                    {Array.isArray(message.citations) && message.citations.length > 0 ? (
-                                                        <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600">
-                                                            <p className="text-xs font-semibold mb-1 dark:text-gray-300">Sources:</p>
-                                                            <div className="space-y-1">
-                                                                {message.citations.map((citation, idx) => (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onClick={async () => {
-                                                                            const docId = citation.document_id || pdfDocumentId;
-                                                                            console.log('Citation clicked:', {
-                                                                                docId,
-                                                                                hasPdfFile: !!uploadedPdfFile,
-                                                                                pageNumber: citation.page_number,
-                                                                                citation
-                                                                            });
-
-                                                                            if (!docId) {
-                                                                                console.warn('No document ID available for citation');
-                                                                                return;
-                                                                            }
-
-                                                                            let fileToUse = uploadedPdfFile;
-
-                                                                            // If we have a docId but no file, or a different file is loaded, load the correct one
-                                                                            if (!fileToUse || (pdfDocumentId && pdfDocumentId !== docId)) {
-                                                                                console.log('Loading PDF for citation:', docId);
-                                                                                fileToUse = await loadPdfFromBackend(docId);
-                                                                                if (fileToUse) {
-                                                                                    setPdfDocumentId(docId);
-                                                                                }
-                                                                            }
-
-                                                                            if (fileToUse && citation.page_number) {
-                                                                                setViewerPage(citation.page_number);
-                                                                                setViewerCoordinates(citation.coordinates || null);
-                                                                                // Pass the chunk text for accurate highlighting (prefer full text)
-                                                                                setViewerChunkText(citation.text || citation.text_preview || null);
-                                                                                setShowPdfViewer(true);
-                                                                            }
-                                                                        }}
-                                                                        className={`text-xs bg-white/50 dark:bg-gray-800/50 rounded p-2 transition-colors border border-transparent ${(citation.document_id || pdfDocumentId) && citation.page_number
-                                                                            ? 'hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600'
-                                                                            : 'text-gray-600 dark:text-gray-400'
-                                                                            }`}
-                                                                        title={(citation.document_id || pdfDocumentId) && citation.page_number ? "Click to view in PDF" : "PDF not available"}
-                                                                    >
-                                                                        <div className="flex items-start justify-between gap-2">
-                                                                            <div className="flex-1 min-w-0">
-                                                                                <p className="font-semibold flex items-center dark:text-gray-200">
-                                                                                    {loadingPdfId === (citation.document_id || pdfDocumentId) ? (
-                                                                                        <Loader className="w-3 h-3 mr-1 animate-spin text-blue-600 dark:text-blue-400" />
-                                                                                    ) : (
-                                                                                        <FileText className="w-3 h-3 mr-1 flex-shrink-0" />
-                                                                                    )}
-                                                                                    <span className="truncate">
-                                                                                        {citation.page_number ? `Page ${citation.page_number}` : 'Citation'}
-                                                                                    </span>
-                                                                                </p>
-                                                                                {citation.text_preview && (
-                                                                                    <p className="text-gray-600 dark:text-gray-400 break-words mt-1 line-clamp-2">
-                                                                                        {citation.text_preview}
-                                                                                    </p>
-                                                                                )}
-                                                                            </div>
-                                                                            {(citation.document_id || pdfDocumentId) && citation.page_number && (
-                                                                                <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    ) : message.role === 'assistant' && message.intent === 'pdf_query' ? (
-                                                        <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-600">
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 italic">No citations found for this answer.</p>
-                                                        </div>
-                                                    ) : null}
-                                                </div>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {message.timestamp
-                                                        ? new Date(message.timestamp).toLocaleTimeString([], {
-                                                            hour: '2-digit',
-                                                            minute: '2-digit',
-                                                        })
-                                                        : ''}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {isLoading && (
-                                        <div className="flex items-start space-x-3">
-                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                                                <Bot className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                            </div>
-                                            <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
-                                                <div className="flex space-x-1">
-                                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div ref={messagesEndRef} />
+    // Composer. Nothing here is invented: it is the same upload, the same audit
+    // and the same send, in a footer that the keyboard cannot cover.
+    const composer = readOnly ? null : (
+        <form onSubmit={handleSend} className="space-y-2">
+            {(uploadedPdf || citationReport || citationError || auditingCitations) && (
+                <div className="max-h-[38dvh] space-y-2 overflow-y-auto overscroll-contain pr-1">
+                    {uploadedPdf && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-900/40 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 rounded-xl px-3 py-2.5 shadow-sm">
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                <div className="flex-shrink-0 p-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                                </div>
+                                <div className="flex min-w-0 flex-col">
+                                    <span className="text-sm font-semibold text-blue-900 dark:text-blue-100 break-words">{uploadedPdf.file_name}</span>
+                                    <span className="text-xs text-blue-600 dark:text-blue-400">{uploadedPdf.total_pages} pages</span>
                                 </div>
                             </div>
-
-                            {/* Input Area */}
-                            {!readOnly && (
-                                <form onSubmit={handleSend} className="p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
-                                    {uploadedPdf && (
-                                        <div className="mb-3 flex items-center justify-between bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-900/40 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 shadow-sm">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
-                                                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">{uploadedPdf.file_name}</span>
-                                                    <span className="text-xs text-blue-600 dark:text-blue-400">{uploadedPdf.total_pages} pages</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleAuditCitations}
-                                                    disabled={auditingCitations || !uploadedPdfFile}
-                                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                    title="Check every claim against the line it cites"
-                                                >
-                                                    {auditingCitations ? 'Checking...' : 'Check the evidence'}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setPdfDocumentId(null);
-                                                        setUploadedPdf(null);
-                                                        setUploadedPdfFile(null);
-                                                        setCitationReport(null);
-                                                        setCitationError(null);
-                                                        setCitationHighlight(null);
-                                                    }}
-                                                    className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors group"
-                                                    title="Clear PDF"
-                                                >
-                                                    <X className="w-4 h-4 text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {(uploadedPdf || citationReport || citationError || auditingCitations) && (
-                                        <div className="mb-3">
-                                            <CitationPanel
-                                                report={citationReport}
-                                                loading={auditingCitations}
-                                                error={citationError}
-                                                onJump={handleJumpToCitation}
-                                            />
-                                        </div>
-                                    )}
-                                    <div className="flex items-end space-x-3">
-                                        <div className="flex-1 relative">
-                                            <input
-                                                ref={inputRef}
-                                                type="text"
-                                                value={input}
-                                                onChange={(e) => setInput(e.target.value)}
-                                                placeholder={uploadedPdf ? "Ask a question about the uploaded PDF..." : "Type your message..."}
-                                                className="w-full px-5 py-3.5 pr-16 border border-gray-300 dark:border-gray-600 rounded-2xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                                disabled={isLoading}
-                                            />
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={handlePdfUpload}
-                                                disabled={uploadingPdf || isLoading}
-                                                className="hidden"
-                                                id="pdf-upload-chat-modal"
-                                            />
-                                            <label
-                                                htmlFor="pdf-upload-chat-modal"
-                                                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95 flex items-center justify-center ${uploadingPdf || isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                                                    } ${uploadedPdf ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}
-                                                title={uploadedPdf ? `PDF: ${uploadedPdf.file_name}` : "Upload PDF for chat context"}
-                                            >
-                                                {uploadingPdf ? (
-                                                    <Loader className="w-5 h-5 animate-spin" />
-                                                ) : (
-                                                    <Upload className="w-5 h-5" />
-                                                )}
-                                            </label>
-                                        </div>
-                                        <button
-                                            type="submit"
-                                            disabled={!input.trim() || isLoading}
-                                            className="px-6 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 dark:from-primary-500 dark:to-primary-600 text-white rounded-2xl hover:from-primary-700 hover:to-primary-800 dark:hover:from-primary-600 dark:hover:to-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 flex items-center justify-center space-x-2 font-medium"
-                                        >
-                                            <Send className="w-5 h-5" />
-                                            <span className="hidden sm:inline">Send</span>
-                                        </button>
-                                    </div>
-                                </form>
-                            )}
+                            <div className="flex flex-shrink-0 items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={handleAuditCitations}
+                                    disabled={auditingCitations || !uploadedPdfFile}
+                                    className="tap inline-flex items-center justify-center text-xs font-semibold px-3 rounded-lg border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Check every claim against the line it cites"
+                                >
+                                    {auditingCitations ? 'Checking...' : 'Check the evidence'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPdfDocumentId(null);
+                                        setUploadedPdf(null);
+                                        setUploadedPdfFile(null);
+                                        setCitationReport(null);
+                                        setCitationError(null);
+                                        setCitationHighlight(null);
+                                    }}
+                                    className="tap flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors group"
+                                    title="Clear PDF"
+                                    aria-label="Clear PDF"
+                                >
+                                    <X className="w-4 h-4 text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300" aria-hidden="true" />
+                                </button>
+                            </div>
                         </div>
                     )}
-                </div>
-
-                {/* PDF Viewer Modal */}
-                {showPdfViewer && uploadedPdfFile && (
-                    <PDFViewer
-                        pdfFile={uploadedPdfFile}
-                        pageNumber={viewerPage}
-                        coordinates={viewerCoordinates}
-                        chunkText={viewerChunkText}
-                        highlight={citationHighlight}
-                        onClose={() => {
-                            setShowPdfViewer(false);
-                            setViewerCoordinates(null);
-                            setViewerChunkText(null);
-                        }}
+                    <CitationPanel
+                        report={citationReport}
+                        loading={auditingCitations}
+                        error={citationError}
+                        onJump={handleJumpToCitation}
                     />
-                )}
+                </div>
+            )}
+            <div className="flex items-end gap-2">
+                {/* 16px type, so the OS never zooms the field on focus. It grows
+                    to ~4 lines, then scrolls. */}
+                <textarea
+                    ref={inputRef}
+                    data-autofocus
+                    rows={1}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleComposerKeyDown}
+                    onFocus={pinToNewest}
+                    placeholder={uploadedPdf ? "Ask a question about the uploaded PDF..." : "Type your message..."}
+                    aria-label="Message"
+                    disabled={isLoading}
+                    className="min-w-0 flex-1 resize-none overflow-y-auto max-h-[7.5rem] sm:max-h-44 px-4 py-2.5 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-base leading-6 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handlePdfUpload}
+                    disabled={uploadingPdf || isLoading}
+                    className="hidden"
+                    id="pdf-upload-chat-modal"
+                />
+                <label
+                    htmlFor="pdf-upload-chat-modal"
+                    className={`tap flex flex-shrink-0 items-center justify-center rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-all duration-200 active:scale-95 ${uploadingPdf || isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                        } ${uploadedPdf ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}
+                    title={uploadedPdf ? `PDF: ${uploadedPdf.file_name}` : "Upload PDF for chat context"}
+                >
+                    {uploadingPdf ? (
+                        <Loader className="w-5 h-5 animate-spin" aria-hidden="true" />
+                    ) : (
+                        <Upload className="w-5 h-5" aria-hidden="true" />
+                    )}
+                </label>
+                <button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    aria-label="Send message"
+                    className="tap flex flex-shrink-0 items-center justify-center gap-2 px-4 sm:px-6 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-700 dark:from-primary-500 dark:to-primary-600 text-white hover:from-primary-700 hover:to-primary-800 dark:hover:from-primary-600 dark:hover:to-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 font-medium"
+                >
+                    <Send className="w-5 h-5" aria-hidden="true" />
+                    <span className="hidden sm:inline">Send</span>
+                </button>
             </div>
-        </div>
+        </form>
+    );
+
+    // A chat needs the height: full-ish on a phone, and the same
+    // near-full-height dialog the desktop had before this pass.
+    return (
+        <MobileSheet
+            open={isOpen}
+            onClose={onClose}
+            title={sheetTitle}
+            description={sheetDescription}
+            size="xl"
+            closeLabel="Close"
+            className="h-[92dvh] sm:h-[85vh]"
+            footer={composer}
+        >
+            {toolbar}
+            {isHistoryOpen ? historyList : transcript}
+
+            {/* PDF Viewer Modal */}
+            {showPdfViewer && uploadedPdfFile && (
+                <PDFViewer
+                    pdfFile={uploadedPdfFile}
+                    pageNumber={viewerPage}
+                    coordinates={viewerCoordinates}
+                    chunkText={viewerChunkText}
+                    highlight={citationHighlight}
+                    onClose={() => {
+                        setShowPdfViewer(false);
+                        setViewerCoordinates(null);
+                        setViewerChunkText(null);
+                    }}
+                />
+            )}
+        </MobileSheet>
     );
 };
 

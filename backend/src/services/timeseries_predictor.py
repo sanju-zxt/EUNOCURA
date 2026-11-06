@@ -4,7 +4,6 @@ Torch is a heavy optional dependency. It is imported defensively so that the API
 boots and serves every other route on a machine where torch is not installed;
 `predict_future_metrics` then returns no extrapolation instead of failing.
 """
-import numpy as np
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 

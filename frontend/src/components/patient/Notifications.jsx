@@ -68,6 +68,14 @@ const formatStamp = (iso) => {
   return `${date} at ${time}`;
 };
 
+// Card chrome. On a phone a card is 16px inset (`px-4 py-4`) so a row keeps the
+// thumbnail-sized gutters; from md the original 24px padding returns unchanged.
+const CARD_PAD = 'px-4 py-4 md:p-6';
+// A centred block (loading / empty / error) keeps its own vertical rhythm, so it
+// states both axes explicitly instead of layering two conflicting padding sets.
+const CENTER_PAD = 'px-4 py-12 md:px-6 md:py-16';
+const EMPTY_PAD = 'px-4 py-10 md:px-6 md:py-12';
+
 const Notifications = () => {
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -205,10 +213,12 @@ const Notifications = () => {
   const retry = () => load();
 
   return (
+    // The portal main element already supplies the phone gutter (px-4), so the
+    // cards add their own 16px inside it rather than doubling the page padding.
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Notifications</h2>
-        <p className="text-gray-600 dark:text-gray-400">
+      <div className="mb-5 sm:mb-8">
+        <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">Notifications</h2>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
           Stay updated with your health reminders and alerts
         </p>
       </div>
@@ -216,37 +226,43 @@ const Notifications = () => {
       {actionError && (
         <div
           role="alert"
-          className="mb-6 rounded-xl border-2 border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex items-start gap-3"
+          className="mb-4 md:mb-6 rounded-xl border-2 border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-4 md:px-4 md:py-3 flex items-start gap-3"
         >
           <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-800 dark:text-red-300">{actionError}</p>
+          <p className="text-sm text-red-800 dark:text-red-300 break-words min-w-0">{actionError}</p>
         </div>
       )}
 
       {loading ? (
-        <div className="card text-center py-16" aria-busy="true">
+        <div className={`card ${CENTER_PAD} text-center`} aria-busy="true">
           <Loader2 className="w-10 h-10 text-primary-600 dark:text-primary-400 mx-auto mb-4 animate-spin" />
           <p className="text-gray-600 dark:text-gray-400">Loading your notifications...</p>
         </div>
       ) : error ? (
-        <div className="card text-center py-16">
+        <div className={`card ${CENTER_PAD} text-center`}>
           <AlertTriangle className="w-16 h-16 text-red-400 dark:text-red-500 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             Could not load notifications
           </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-xl mx-auto">{error}</p>
-          <button onClick={retry} className="btn-secondary inline-flex items-center">
+          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-xl mx-auto break-words">{error}</p>
+          <button
+            onClick={retry}
+            className="btn-secondary tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center"
+          >
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
           </button>
         </div>
       ) : (
         <>
-          {/* Stats and Actions */}
-          <div className="card mb-6 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-200 dark:border-orange-700 hover:shadow-xl transition-all duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-3 rounded-xl shadow-md relative">
+          {/* Stats and Actions — kept above the list on a phone so "Mark all read"
+              is the first thing a thumb reaches, not something below 40 rows. */}
+          <div
+            className={`card ${CARD_PAD} mb-4 md:mb-6 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-200 dark:border-orange-700 hover:shadow-xl transition-all duration-200`}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-3 rounded-xl shadow-md relative flex-shrink-0">
                   <Bell className="w-6 h-6 text-white" />
                   {unread > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-lg">
@@ -254,7 +270,7 @@ const Notifications = () => {
                     </span>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                     {unread} Unread Notification{unread !== 1 ? 's' : ''}
                   </h3>
@@ -267,7 +283,7 @@ const Notifications = () => {
                 <button
                   onClick={markAllAsRead}
                   disabled={busyAll}
-                  className="btn-secondary text-sm flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="btn-secondary tap md:min-h-0 md:min-w-0 w-full md:w-auto inline-flex items-center justify-center text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {busyAll ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -282,7 +298,7 @@ const Notifications = () => {
 
           {/* Filters — counts come from the loaded rows, never invented */}
           {items.length > 0 && (
-            <div className="card mb-6 hover:shadow-xl transition-all duration-200">
+            <div className={`card ${CARD_PAD} mb-4 md:mb-6 hover:shadow-xl transition-all duration-200`}>
               <div className="flex flex-wrap gap-2">
                 {chips.map((chip) => {
                   const isActive = filter === chip.key;
@@ -297,7 +313,7 @@ const Notifications = () => {
                       key={chip.key}
                       onClick={() => setFilter(chip.key)}
                       aria-pressed={isActive}
-                      className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      className={`tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
                         isActive ? active : idle
                       }`}
                     >
@@ -312,12 +328,12 @@ const Notifications = () => {
           {/* Notifications List */}
           <div className="space-y-3">
             {visible.length === 0 ? (
-              <div className="card text-center py-12">
+              <div className={`card ${EMPTY_PAD} text-center`}>
                 <Bell className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                 {items.length === 0 ? (
                   <>
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      You're all caught up
+                      You have no notifications
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400">
                       Reminders and updates from your care team will appear here.
@@ -331,7 +347,10 @@ const Notifications = () => {
                     <p className="text-gray-600 dark:text-gray-400 mb-4">
                       No notifications match the selected category.
                     </p>
-                    <button onClick={() => setFilter('all')} className="btn-secondary text-sm">
+                    <button
+                      onClick={() => setFilter('all')}
+                      className="btn-secondary tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center text-sm"
+                    >
                       Show all
                     </button>
                   </>
@@ -345,42 +364,69 @@ const Notifications = () => {
                 return (
                   <div
                     key={notif.id}
-                    className={`card transition-all duration-200 hover:shadow-lg ${
+                    className={`card ${CARD_PAD} relative transition-all duration-200 hover:shadow-lg ${
                       notif.read
                         ? 'bg-white dark:bg-gray-800'
                         : 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700'
                     }`}
                   >
-                    <div className="flex items-start space-x-4">
-                      <div className={`${meta.icon} p-3 rounded-xl shadow-md flex-shrink-0`}>
+                    {/* Phone only: an unread row is actionable, so the whole row
+                        marks it read. This is a real <button> rather than a click
+                        handler on a div, so a keyboard or screen reader gets the
+                        same action; the footer below sits above it in the stack
+                        so its own controls still receive their taps. */}
+                    {!notif.read && (
+                      <button
+                        type="button"
+                        onClick={() => markAsRead(notif.id)}
+                        disabled={isPending}
+                        aria-label={`Mark as read: ${notif.title}`}
+                        className="tap absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 disabled:cursor-not-allowed md:hidden"
+                      />
+                    )}
+
+                    {/* Nothing here is interactive, so it stays under the row's
+                        tap target; the spacing is the same 16px the desktop used. */}
+                    <div className="flex items-start gap-3 md:gap-4">
+                      <div className={`${meta.icon} p-2.5 md:p-3 rounded-xl shadow-md flex-shrink-0`}>
                         <Icon className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-1">
+                        <div className="flex items-start justify-between gap-2 mb-1">
                           <h4
-                            className={`text-gray-900 dark:text-white ${
-                              notif.read ? 'font-semibold' : 'font-bold'
+                            className={`min-w-0 break-words text-base text-gray-900 dark:text-white ${
+                              notif.read ? 'font-normal md:font-semibold' : 'font-bold'
                             }`}
                           >
                             {notif.title}
                           </h4>
                           {!notif.read && (
-                            <span className="inline-block w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full flex-shrink-0 ml-2 mt-1.5"></span>
+                            <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-blue-600 dark:bg-blue-400" />
                           )}
                         </div>
                         {notif.body && (
-                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{notif.body}</p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 break-words">{notif.body}</p>
                         )}
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatStamp(notif.created_at)}
-                          </p>
-                          <div className="flex items-center space-x-3">
+                        {/* Footer. Phone: stacked, so the stamp gets its own line
+                            and never has to compete with the buttons for width.
+                            From md it is the row the desktop always had. */}
+                        <div className="pointer-events-none relative z-10 flex flex-col items-start gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between">
+                          <div className="pointer-events-none flex min-w-0 flex-wrap items-center gap-2">
+                            {!notif.read && (
+                              <span className="md:hidden inline-flex flex-shrink-0 items-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white dark:bg-blue-500">
+                                Unread
+                              </span>
+                            )}
+                            <p className="min-w-0 break-words text-xs text-gray-500 dark:text-gray-400">
+                              {formatStamp(notif.created_at)}
+                            </p>
+                          </div>
+                          <div className="pointer-events-auto flex w-full items-center justify-end gap-2 md:w-auto md:gap-3">
                             {notif.link &&
                               (notif.link.startsWith('/') ? (
                                 <Link
                                   to={notif.link}
-                                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-semibold inline-flex items-center transition-colors"
+                                  className="tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-semibold transition-colors md:border-0 md:px-0"
                                 >
                                   Open
                                   <ExternalLink className="w-3 h-3 ml-1" />
@@ -390,17 +436,20 @@ const Notifications = () => {
                                   href={notif.link}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-semibold inline-flex items-center transition-colors"
+                                  className="tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-semibold transition-colors md:border-0 md:px-0"
                                 >
                                   Open
                                   <ExternalLink className="w-3 h-3 ml-1" />
                                 </a>
                               ))}
+                            {/* The phone marks a row read by tapping it, so this
+                                text control is the md+ affordance only. */}
                             {!notif.read && (
                               <button
+                                type="button"
                                 onClick={() => markAsRead(notif.id)}
                                 disabled={isPending}
-                                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center"
+                                className="hidden md:inline-flex text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed items-center"
                               >
                                 {isPending ? (
                                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -414,7 +463,7 @@ const Notifications = () => {
                               onClick={() => deleteNotification(notif.id)}
                               disabled={isPending}
                               aria-label={`Delete notification: ${notif.title}`}
-                              className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="tap md:min-h-0 md:min-w-0 inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-800 px-3 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed md:border-0 md:px-0"
                             >
                               {isPending ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />

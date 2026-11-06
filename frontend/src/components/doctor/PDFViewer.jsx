@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, ChevronLeft, ChevronRight, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { resolveAssetUrl } from '../../utils/api';
+import { hapticTap } from '../../services/native';
 
 // Set worker source - using the worker from public directory
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
@@ -17,7 +20,40 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
  *
  * CitationPanel mode: pass `highlight={{ page, coords: {x0,y0,x1,y1} }}` to draw a
  * translucent yellow box on that page and scroll it into view.
+ *
+ * Phone shape (< md): the viewer takes the full screen and its own height, the
+ * page is laid out at fit-to-width ("100%"), the scroll area owns vertical
+ * scrolling (`overscroll-contain`, so the document behind never moves), and the
+ * page/zoom controls live in a bar along the bottom edge with 44px targets and
+ * safe-area padding. At md+ the panel is the same centred dialog it always was.
  */
+// Zoom is a multiplier over fit-to-width, so 1 (100%) means "the page fits the
+// screen" on a phone and the old fit-to-container scale on a desk.
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+const MIN_ZOOM = ZOOM_LEVELS[0];
+const MAX_ZOOM = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+
+const clampZoom = (value) => {
+    if (!Number.isFinite(value)) return 1;
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 100) / 100));
+};
+
+// A canvas sized in CSS pixels is blurry on a 2x/3x phone screen, so the backing
+// store is multiplied by devicePixelRatio. The budget stops a deep zoom on a
+// high-density phone from allocating a 40-megapixel bitmap.
+const renderPixelRatio = (width, height) => {
+    const raw = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const budget = 12000000;
+    const byBudget = Math.sqrt(budget / Math.max(width * height, 1));
+    return Math.max(1, Math.min(raw, 3, byBudget));
+};
+
+const touchSpan = (touches) => {
+    const [a, b] = touches;
+    if (!a || !b) return 0;
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+};
+
 const PDFViewer = ({
     pdfFile,
     pageNumber,
@@ -33,19 +69,36 @@ const PDFViewer = ({
     const textLayerRef = useRef(null);
     const containerRef = useRef(null);
     const highlightRef = useRef(null);
+    const renderTaskRef = useRef(null);
+    const pinchRef = useRef({ active: false, span: 0, zoom: 1, frame: 0, pending: null });
+    const lastPageProp = useRef(Number(pageNumber) || 1);
     const [pdf, setPdf] = useState(null);
     const [page, setPage] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [scale, setScale] = useState(1.5);
+    const [errorStage, setErrorStage] = useState('document');
+    const [baseScale, setBaseScale] = useState(1.5);
+    const [zoom, setZoom] = useState(1);
     const [viewport, setViewport] = useState(null);
     const [textItems, setTextItems] = useState([]);
     const [showOverlay, setShowOverlay] = useState(true);
+    // The parent owns the citation page; the viewer owns which page is on screen
+    // so the page controls can move without a callback that does not exist yet.
+    const [viewPage, setViewPage] = useState(() => Number(pageNumber) || 1);
+    const [reloadToken, setReloadToken] = useState(0);
+
+    // What is actually rendered: fit-to-width scale times the user's zoom.
+    const scale = baseScale * zoom;
+    const totalPages = pdf && Number.isFinite(pdf.numPages) ? pdf.numPages : null;
+    const pageLabel = totalPages ? `Page ${viewPage} of ${totalPages}` : `Page ${viewPage}`;
+    // Coordinates belong to the page they were verified on; never draw them on
+    // another page just because the user paged away from the citation.
+    const isCitationPage = Number(viewPage) === (Number(pageNumber) || 1);
 
     // Evidence highlight handed in from CitationPanel ("Jump to line").
     // Only draw it when the requested page is the page currently rendered.
     const highlightOnThisPage = !!highlight && !!highlight.coords &&
-        (!highlight.page || Number(highlight.page) === Number(pageNumber));
+        (!highlight.page || Number(highlight.page) === Number(viewPage));
 
     // Scroll the highlight into view once the page has been rendered.
     useEffect(() => {
@@ -54,11 +107,11 @@ const PDFViewer = ({
         if (el && typeof el.scrollIntoView === 'function') {
             el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
-    }, [highlightOnThisPage, highlight, viewport, pageNumber]);
+    }, [highlightOnThisPage, highlight, viewport, viewPage]);
 
-    // Load PDF document from File object
+    // Load PDF document from a File/Blob, or from a URL the backend handed us.
     useEffect(() => {
-        if (!pdfFile) return;
+        if (!pdfFile) return undefined;
 
         let isMounted = true;
 
@@ -66,24 +119,36 @@ const PDFViewer = ({
             try {
                 setLoading(true);
                 setError(null);
+                setPdf(null);
+                setPage(null);
+                setViewport(null);
+                setTextItems([]);
 
-                // Convert File to ArrayBuffer
-                const arrayBuffer = await pdfFile.arrayBuffer();
-
-                // Load PDF
-                const loadingTask = pdfjsLib.getDocument({
-                    data: arrayBuffer,
-                });
+                // A File from an <input type="file"> is the normal path. A string
+                // is a backend URL: route it through resolveAssetUrl so a
+                // localhost URL becomes the address this device can reach.
+                const loadingTask = typeof pdfFile === 'string'
+                    ? pdfjsLib.getDocument({ url: resolveAssetUrl(pdfFile) })
+                    : pdfjsLib.getDocument({ data: await pdfFile.arrayBuffer() });
 
                 const pdfDoc = await loadingTask.promise;
 
                 if (isMounted) {
                     setPdf(pdfDoc);
+                    // A freshly opened document starts at the citation page,
+                    // fitted to the width.
+                    setViewPage(Number(pageNumber) || 1);
+                    lastPageProp.current = Number(pageNumber) || 1;
+                    setZoom(1);
                 }
             } catch (err) {
                 console.error('Error loading PDF:', err);
                 if (isMounted) {
-                    setError(`Failed to load PDF: ${err.message}`);
+                    setErrorStage('document');
+                    setError(err && err.message ? err.message : 'Unknown error');
+                    // The page effect never runs for a document that failed, so
+                    // the spinner must stop here or it would cover the error.
+                    setLoading(false);
                 }
             }
         };
@@ -93,54 +158,55 @@ const PDFViewer = ({
         return () => {
             isMounted = false;
         };
-    }, [pdfFile]);
+        // pageNumber is read only for the initial page, so it is not a dependency.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pdfFile, reloadToken]);
 
     // Calculate optimal scale function - fit to width but allow vertical scrolling
     const calculateOptimalScale = (pdfPage, container) => {
         if (!container || !pdfPage) return 1.5; // Default scale
-        
-        const containerWidth = container.clientWidth - 32; // Account for padding
+
+        const containerWidth = Math.max(container.clientWidth - 32, 160); // Account for padding
         const pageViewport = pdfPage.getViewport({ scale: 1.0 });
-        
+
         // Calculate scale to fit width, allowing vertical scrolling
         const scaleX = containerWidth / pageViewport.width;
         // Use a reasonable scale (fit to width, but allow it to be larger for scrolling)
         const optimalScale = Math.min(scaleX * 0.95, 2.0); // 95% of width fit, max 2x
-        
+
         return optimalScale;
     };
 
-    // Load specific page and calculate optimal scale
+    // The parent owns the citation page: a new "jump to line" wins over whatever
+    // page the reader had paged to.
     useEffect(() => {
-        if (!pdf || !pageNumber) return;
+        const next = Number(pageNumber) || 1;
+        if (next === lastPageProp.current) return;
+        lastPageProp.current = next;
+        setViewPage(next);
+    }, [pageNumber]);
+
+    // Load the page on screen and put it back to fit-to-width.
+    useEffect(() => {
+        if (!pdf || !viewPage) return undefined;
 
         let isMounted = true;
 
         const loadPage = async () => {
             try {
                 setLoading(true);
-                const pdfPage = await pdf.getPage(pageNumber);
+                const pdfPage = await pdf.getPage(viewPage);
 
                 if (isMounted) {
                     setPage(pdfPage);
-                    
-                    // Calculate optimal scale to fit container
-                    const container = containerRef.current;
-                    if (container) {
-                        const optimalScale = calculateOptimalScale(pdfPage, container);
-                        const vp = pdfPage.getViewport({ scale: optimalScale });
-                        setViewport(vp);
-                        setScale(optimalScale);
-                    } else {
-                        // Fallback to default scale
-                        const vp = pdfPage.getViewport({ scale });
-                        setViewport(vp);
-                    }
+                    setTextItems([]);
+                    setZoom(1);
                 }
             } catch (err) {
                 console.error('Error loading page:', err);
                 if (isMounted) {
-                    setError(`Failed to load page ${pageNumber}`);
+                    setErrorStage('page');
+                    setError(err && err.message ? err.message : `Page ${viewPage} could not be read`);
                 }
             } finally {
                 if (isMounted) {
@@ -154,48 +220,85 @@ const PDFViewer = ({
         return () => {
             isMounted = false;
         };
-    }, [pdf, pageNumber]);
+    }, [pdf, viewPage, reloadToken]);
 
-    // Handle window resize to recalculate scale (only adjust width, allow vertical scroll)
+    // Fit-to-width baseline for the page on screen (the user's zoom rides on top
+    // of this, so a resize must not throw the zoom level away).
     useEffect(() => {
-        if (!page || !viewport) return;
+        if (!page) return undefined;
 
-        const handleResize = () => {
+        const measure = () => {
             const container = containerRef.current;
-            if (container && page) {
-                const optimalScale = calculateOptimalScale(page, container);
-                if (Math.abs(optimalScale - scale) > 0.05) { // Only update if significant change
-                    const vp = page.getViewport({ scale: optimalScale });
-                    setViewport(vp);
-                    setScale(optimalScale);
-                }
-            }
+            const optimalScale = calculateOptimalScale(page, container);
+            setBaseScale((previous) => (Math.abs(previous - optimalScale) > 0.01 ? optimalScale : previous));
         };
 
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [page, viewport, scale]);
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page]);
+
+    // The viewport is derived from page + scale, so zoom and resize share one path.
+    useEffect(() => {
+        if (!page) return;
+        setViewport(page.getViewport({ scale }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, scale]);
 
     // Render page to canvas and extract text
     useEffect(() => {
-        if (!page || !viewport || !canvasRef.current) return;
+        if (!page || !viewport || !canvasRef.current) return undefined;
 
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
-        if (!context) return;
+        if (!context) return undefined;
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Backing store in device pixels, layout size in CSS pixels. Without the
+        // ratio the page text is visibly soft on a phone screen.
+        const ratio = renderPixelRatio(viewport.width, viewport.height);
+        const pixelWidth = Math.max(1, Math.round(viewport.width * ratio));
+        const pixelHeight = Math.max(1, Math.round(viewport.height * ratio));
+
+        // A pinch can start a new render before the previous one finished.
+        if (renderTaskRef.current && typeof renderTaskRef.current.cancel === 'function') {
+            try {
+                renderTaskRef.current.cancel();
+            } catch {
+                /* the task had already settled */
+            }
+        }
+
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
 
         const renderContext = {
             canvasContext: context,
             viewport: viewport,
         };
+        if (ratio !== 1) {
+            renderContext.transform = [ratio, 0, 0, ratio, 0, 0];
+        }
 
-        page.render(renderContext).promise.then(async () => {
+        let cancelled = false;
+        let renderTask;
+        try {
+            renderTask = page.render(renderContext);
+        } catch (err) {
+            // pdf.js refuses a second render on a canvas that is still busy; the
+            // page stays on screen instead of taking the viewer down.
+            console.error('Error rendering PDF:', err);
+            return undefined;
+        }
+        renderTaskRef.current = renderTask;
+
+        renderTask.promise.then(async () => {
             // Extract text items for highlighting
             try {
                 const textContent = await page.getTextContent();
+                if (cancelled) return;
                 const items = textContent.items.map((item, index) => {
                     // Transform coordinates from PDF space to viewport space
                     // PDF coordinates use bottom-left origin (y increases upward)
@@ -239,8 +342,19 @@ const PDFViewer = ({
                 console.error('Error extracting text:', err);
             }
         }).catch((err) => {
+            // A cancelled render is the zoom path, not a failure.
+            if (err && err.name === 'RenderingCancelledException') return;
             console.error('Error rendering PDF:', err);
         });
+
+        return () => {
+            cancelled = true;
+            try {
+                renderTask.cancel();
+            } catch {
+                /* already done */
+            }
+        };
     }, [page, viewport]);
 
     // Helper function to find which text items should be highlighted
@@ -422,16 +536,12 @@ const PDFViewer = ({
         return highlightedIndices;
     };
 
-    if (!pdfFile) {
-        return null;
-    }
-
     // Convert coordinates object to bbox array for the helper function
     // Coordinates from backend are in PDF space (bottom-left origin)
     // bbox format: [x0, y0, x1, y1] where y0 is bottom, y1 is top
     const highlightCoords = (highlightOnThisPage ? highlight?.coords : null) || coordinates;
     const bbox = highlightCoords ? [highlightCoords.x0, highlightCoords.y0, highlightCoords.x1, highlightCoords.y1] : null;
-    
+
     // Debug logging
     useEffect(() => {
         if (bbox && textItems.length > 0) {
@@ -447,16 +557,46 @@ const PDFViewer = ({
             });
         }
     }, [bbox, textItems, page]);
-    
+
+    // The viewer covers the screen, so the page behind it must not scroll under
+    // the reader's thumb, and Escape has to work the way every other dialog
+    // here does. Both are restored on close.
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+
+        const { body } = document;
+        const previousOverflow = body.style.overflow;
+        body.style.overflow = 'hidden';
+
+        const onKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            // Capture at the window so Escape closes this viewer and not the
+            // MobileSheet it was opened from (ChatModal renders it inside one).
+            event.stopPropagation();
+            if (onClose) onClose();
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+
+        return () => {
+            body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', onKeyDown, true);
+        };
+    }, [onClose]);
+
+    if (!pdfFile) {
+        return null;
+    }
+
     const pageHeight = page ? page.view[3] - page.view[1] : 0;
 
-    const highlightedIndices = bbox && viewport && page && textItems.length > 0
+    const highlightedIndices = bbox && viewport && page && isCitationPage && textItems.length > 0
         ? getHighlightedTextItems(bbox, viewport, pageHeight, textItems, chunkText, showOverlay)
         : new Set();
 
     // Exact box in viewport space. Backend coordinates are bottom-left origin,
-    // the viewport is top-left, so flip Y with the page height.
-    const overlayRect = showOverlay && bbox && viewport && pageHeight && highlightCoords && !highlightOnThisPage
+    // the viewport is top-left, so flip Y with the page height. Only drawn on the
+    // page it was verified on.
+    const overlayRect = showOverlay && bbox && viewport && pageHeight && highlightCoords && !highlightOnThisPage && isCitationPage
         ? {
             left: highlightCoords.x0 * scale,
             top: (pageHeight - highlightCoords.y1) * scale,
@@ -509,23 +649,119 @@ const PDFViewer = ({
         ? `${Math.round(confidence <= 1 ? confidence * 100 : confidence)}%`
         : null;
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col transition-colors duration-200" onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center space-x-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Citation View - Page {pageNumber}</h3>
-                        {coordinates && (
-                            <div className={`text-xs px-2 py-1 rounded border ${verdictColor.text} ${verdictColor.bg} ${verdictColor.border}`}>
+    // ---- Controls -----------------------------------------------------------
+    const goToPage = (next) => {
+        if (!totalPages) return;
+        const target = Math.min(Math.max(next, 1), totalPages);
+        if (target === viewPage) return;
+        hapticTap();
+        setViewPage(target);
+        const container = containerRef.current;
+        if (container && typeof container.scrollTo === 'function') {
+            container.scrollTo({ top: 0 });
+        }
+    };
+
+    const stepZoom = (direction) => {
+        let next;
+        if (direction > 0) {
+            next = ZOOM_LEVELS.find((level) => level > zoom + 0.001);
+            if (next === undefined) next = MAX_ZOOM;
+        } else {
+            next = [...ZOOM_LEVELS].reverse().find((level) => level < zoom - 0.001);
+            if (next === undefined) next = MIN_ZOOM;
+        }
+        hapticTap();
+        setZoom(clampZoom(next));
+    };
+
+    const resetZoom = () => {
+        hapticTap();
+        setZoom(1);
+    };
+
+    const retry = () => {
+        setError(null);
+        setErrorStage('document');
+        setLoading(true);
+        setReloadToken((token) => token + 1);
+    };
+
+    // Pinch-to-zoom on the page itself. The two-finger gesture is ours (the
+    // scroll area declares `touch-action: pan-x pan-y`), and the commit is
+    // throttled to one animation frame so a pinch does not queue 60 renders.
+    const onTouchStart = (event) => {
+        if (event.touches.length !== 2) return;
+        pinchRef.current = {
+            ...pinchRef.current,
+            active: true,
+            span: touchSpan(event.touches) || 1,
+            zoom,
+            pending: null,
+        };
+    };
+
+    const onTouchMove = (event) => {
+        const pinch = pinchRef.current;
+        if (!pinch.active || event.touches.length !== 2) return;
+        const span = touchSpan(event.touches);
+        if (!span) return;
+        pinch.pending = clampZoom(pinch.zoom * (span / pinch.span));
+        if (pinch.frame) return;
+        if (typeof window === 'undefined') return;
+        pinch.frame = window.requestAnimationFrame(() => {
+            pinch.frame = 0;
+            if (pinch.pending != null) setZoom(pinch.pending);
+        });
+    };
+
+    const onTouchEnd = (event) => {
+        if (event.touches.length >= 2) return;
+        const pinch = pinchRef.current;
+        pinch.active = false;
+        if (pinch.frame && typeof window !== 'undefined') {
+            window.cancelAnimationFrame(pinch.frame);
+            pinch.frame = 0;
+        }
+        if (pinch.pending != null) {
+            setZoom(pinch.pending);
+            pinch.pending = null;
+        }
+    };
+
+    const controlButton = 'tap inline-flex items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-gray-700 md:h-9 md:w-9 md:min-h-0 md:min-w-0';
+    const zoomValueButton = 'tap inline-flex items-center justify-center rounded-lg px-2 text-xs tabular-nums text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 md:h-9 md:min-h-0 md:min-w-[3.5rem]';
+
+    const viewer = (
+        <div
+            className="fixed inset-0 z-[60] flex items-stretch justify-center bg-black bg-opacity-75 p-0 md:items-center md:p-4"
+            onClick={onClose}
+            role="presentation"
+        >
+            <div
+                className="flex h-app w-full max-w-6xl flex-col overflow-hidden bg-white pb-safe pt-safe shadow-2xl transition-colors duration-200 dark:bg-gray-800 md:h-auto md:max-h-[95vh] md:rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Citation viewer, ${pageLabel}`}
+            >
+                {/* Header. On a phone the title and the close button own the first
+                    row and the verdict chips wrap onto a second one, so nothing is
+                    squeezed at 360px. At md+ it is the original single row. */}
+                <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700 sm:flex-nowrap sm:p-4">
+                    <h3 className="order-1 min-w-0 flex-1 break-words text-sm font-semibold text-gray-900 dark:text-white sm:order-none sm:flex-none sm:text-lg">
+                        Citation View - {pageLabel}
+                    </h3>
+                    {coordinates && (
+                        <div className="order-3 flex w-full flex-wrap items-center gap-1.5 sm:order-none sm:w-auto sm:gap-4">
+                            <div className={`rounded border px-2 py-1 text-xs ${verdictColor.text} ${verdictColor.bg} ${verdictColor.border}`}>
                                 {verdict === 'supported' ? 'Exact line found' : verdict === 'page_corrected' ? 'Page corrected' : 'Highlighted region'}
                                 {confidencePct ? ` · ${confidencePct}` : ''}
                             </div>
-                        )}
-                        {coordinates && (
                             <button
+                                type="button"
                                 onClick={() => setShowOverlay((value) => !value)}
-                                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                                className={`tap rounded border px-3 py-1 text-xs transition-colors md:min-h-0 md:min-w-0 ${
                                     showOverlay
                                         ? 'bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900'
                                         : 'bg-white text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600'
@@ -534,50 +770,63 @@ const PDFViewer = ({
                             >
                                 Evidence overlay {showOverlay ? 'ON' : 'OFF'}
                             </button>
-                        )}
-                    </div>
+                        </div>
+                    )}
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 dark:text-gray-400"
+                        className="tap order-2 -mr-1 shrink-0 rounded p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 sm:order-none md:ml-auto md:min-h-0 md:min-w-0"
                         title="Close"
+                        aria-label="Close"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* PDF Canvas Container - Scrollable */}
+                {/* Page area - the only scroller. `overscroll-contain` stops the
+                    flick at the end of a page from moving the document behind the
+                    viewer; `text-align: center` keeps the page centred while still
+                    leaving the whole page reachable when zoomed past the width. */}
                 <div
                     ref={containerRef}
-                    className="relative bg-gray-200 dark:bg-gray-900 p-4 overflow-auto"
-                    style={{
-                        minHeight: '500px',
-                        maxHeight: 'calc(95vh - 140px)',
-                        width: '100%',
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'flex-start',
-                    }}
+                    className="relative min-h-0 flex-1 overflow-auto overscroll-contain bg-gray-200 px-2 py-2 dark:bg-gray-900 sm:p-4 md:min-h-[320px]"
+                    style={{ textAlign: 'center', touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch' }}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
+                    onTouchCancel={onTouchEnd}
                 >
                     {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75 z-10">
+                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 dark:bg-gray-800 dark:bg-opacity-75 z-10" role="status" aria-live="polite">
                             <div className="text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-2" aria-hidden="true"></div>
                                 <p className="text-gray-600 dark:text-gray-300">Loading PDF...</p>
                             </div>
                         </div>
                     )}
 
                     {error && (
-                        <div className="flex items-center justify-center p-8">
-                            <div className="text-center">
-                                <p className="text-red-600 dark:text-red-400 font-semibold mb-2">Error Loading PDF</p>
-                                <p className="text-gray-600 dark:text-gray-300 text-sm">{error}</p>
+                        <div className="flex min-h-[220px] items-center justify-center p-4 sm:p-8" role="alert">
+                            <div className="max-w-sm text-center">
+                                <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-red-500" aria-hidden="true" />
+                                <p className="text-red-600 dark:text-red-400 font-semibold mb-2">
+                                    {errorStage === 'document' ? 'This PDF could not be loaded' : `Page ${viewPage} could not be displayed`}
+                                </p>
+                                <p className="text-gray-600 dark:text-gray-300 text-sm break-words">{error}</p>
+                                <button
+                                    type="button"
+                                    onClick={retry}
+                                    className="tap mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                                >
+                                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                                    Try again
+                                </button>
                             </div>
                         </div>
                     )}
 
                     {!error && viewport && (
-                        <div className="relative inline-block bg-white shadow-lg m-4">
+                        <div className="relative inline-block bg-white shadow-lg m-2 sm:m-4">
                             {/* CSS Animation for highlight blinking */}
                             <style>{`
                                 @keyframes highlightBlink {
@@ -589,7 +838,7 @@ const PDFViewer = ({
                                     }
                                 }
                             `}</style>
-                            <canvas ref={canvasRef} />
+                            <canvas ref={canvasRef} className="block" />
 
                             {/* Exact verified bounding box (evidence overlay) */}
                             {overlayRect && (
@@ -668,9 +917,72 @@ const PDFViewer = ({
                     )}
                 </div>
 
+                {/* Controls. Page first, zoom second, each group kept intact and
+                    allowed to wrap - so at 360px the zoom buttons sit in the row
+                    instead of being pushed off the viewer edge. */}
+                <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-2 py-2 dark:border-gray-700 sm:px-3">
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => goToPage(viewPage - 1)}
+                            disabled={viewPage <= 1}
+                            className={controlButton}
+                            title="Previous page"
+                            aria-label="Previous page"
+                        >
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                        <span className="whitespace-nowrap px-1 text-xs tabular-nums text-gray-700 dark:text-gray-200 sm:text-sm">
+                            {pageLabel}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => goToPage(viewPage + 1)}
+                            disabled={!totalPages || viewPage >= totalPages}
+                            className={controlButton}
+                            title="Next page"
+                            aria-label="Next page"
+                        >
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => stepZoom(-1)}
+                            disabled={zoom <= MIN_ZOOM}
+                            className={controlButton}
+                            title="Zoom out"
+                            aria-label="Zoom out"
+                        >
+                            <ZoomOut className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={resetZoom}
+                            className={zoomValueButton}
+                            title="Reset zoom to fit the width"
+                            aria-label="Reset zoom to fit the width"
+                        >
+                            {Math.round(zoom * 100)}%
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => stepZoom(1)}
+                            disabled={zoom >= MAX_ZOOM}
+                            className={controlButton}
+                            title="Zoom in"
+                            aria-label="Zoom in"
+                        >
+                            <ZoomIn className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </div>
+                </div>
+
                 {/* Footer Info */}
                 {coordinates && (
-                    <div className={`p-3 border-t text-sm ${verdictColor.bg} ${verdictColor.text} ${verdictColor.border}`}>
+                    <div className={`max-h-[38vh] flex-shrink-0 overflow-y-auto overscroll-contain border-t p-3 text-sm sm:max-h-none ${verdictColor.bg} ${verdictColor.text} ${verdictColor.border}`}>
                         <p className="font-semibold">
                             {verdict === 'supported'
                                 ? 'Exact line found on the cited page'
@@ -688,13 +1000,19 @@ const PDFViewer = ({
                             <p className="text-xs mt-1 opacity-80">{verification.reason}</p>
                         )}
                         <p className="text-xs mt-1 opacity-80">
-                            Page {pageNumber} • box ({coordinates.x0.toFixed(1)}, {coordinates.y0.toFixed(1)}) → ({coordinates.x1.toFixed(1)}, {coordinates.y1.toFixed(1)})
+                            Box on page {pageNumber} • ({coordinates.x0.toFixed(1)}, {coordinates.y0.toFixed(1)}) → ({coordinates.x1.toFixed(1)}, {coordinates.y1.toFixed(1)})
                         </p>
                     </div>
                 )}
             </div>
         </div>
     );
+
+    // Portalled to the body: ChatModal renders this viewer inside its own
+    // MobileSheet, and a transformed/overflow-hidden ancestor would otherwise
+    // size and clip the full-screen viewer to the sheet panel.
+    if (typeof document === 'undefined') return viewer;
+    return createPortal(viewer, document.body);
 };
 
 export default PDFViewer;

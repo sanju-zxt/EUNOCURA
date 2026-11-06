@@ -31,11 +31,16 @@ VERSION = "2.0.0"
 app = FastAPI(title=APP_NAME, version=VERSION)
 
 
+# The last three entries are the packaged app: a Capacitor webview loads the
+# bundle from a synthetic https origin, so without them every fetch from the APK
+# is blocked by CORS before it leaves the phone (the symptom is an app that says
+# "server not connected" while /healthz is green in the browser).
 _origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000,"
     "http://localhost:3001,http://127.0.0.1:3001,"
-    "http://localhost:5173,http://127.0.0.1:5173"
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "https://localhost,capacitor://localhost,http://localhost"
 )
 
 app.add_middleware(
@@ -105,6 +110,32 @@ def _rag_status() -> dict:
     from src.services import pdf_rag
 
     return pdf_rag.probe()
+
+
+# A dead database must read as "try again in a minute", not as a 500 traceback.
+# Every data route already handles its own case; this is the backstop for the
+# ones that predate that rule (login is the one that matters: a judge cannot get
+# past the door, so the door has to explain itself).
+try:
+    from pymongo.errors import PyMongoError
+except Exception:  # pragma: no cover - pymongo is a hard dependency
+    PyMongoError = None
+
+if PyMongoError is not None:
+
+    @app.exception_handler(PyMongoError)
+    async def _mongo_unavailable(request, exc):  # noqa: ANN001, ARG001
+        from fastapi.responses import JSONResponse
+
+        reason = getattr(db, "LAST_ERROR", None) or db._clean_error(exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "The database is unreachable, so this route cannot answer.",
+                "reason": reason,
+                "fix": "Start MongoDB, or set MONGODB_URI to a reachable cluster. /healthz shows the same probe.",
+            },
+        )
 
 
 @app.get("/")
@@ -188,7 +219,12 @@ async def healthz():
         "mongo": {
             "configured": db.MONGO_CONFIGURED,
             "reachable": mongo_reachable,
-            "hint": "" if mongo_reachable else "Set MONGODB_URI, or start a local mongod.",
+            "reason": getattr(db, "LAST_ERROR", None),
+            "hint": "" if mongo_reachable else (
+                "Set MONGODB_URI, or start a local mongod."
+                if db.MONGO_CONFIGURED
+                else "MONGODB_URI is not set. Portals need it; AI + document paths do not."
+            ),
         },
         "storage": {
             "mode": storage_mode(),

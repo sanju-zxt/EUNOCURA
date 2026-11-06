@@ -375,17 +375,59 @@ provable without a model in the loop.
 
 ---
 
-## 11. Licence
+## 12. The Android app
 
-Both licences used here are on the OSI approved list
-(<https://opensource.org/licenses>).
+A debug APK is available at `EUNOCURA.apk` (or build with `npm run mobile:apk`).
 
-| Part | Licence | Where |
-|---|---|---|
-| Code we wrote — citation-or-drop, model router, audit trail, offline tests, deploy | **Apache-2.0** | `LICENSE` |
-| Upstream code we forked — FastAPI app, MongoDB models, React portal | **MIT** | `LICENSE-MIT-upstream` |
-| Model weights | their own terms, not distributed here | see §2 |
+### What it is
 
-The exact split, plus the upstream attribution MIT requires, is in `NOTICE`.
-Machine-readable: `frontend/package.json` declares `"license": "Apache-2.0"`,
-and files we wrote carry an `SPDX-License-Identifier: Apache-2.0` header.
+* **Debug-build signing only.** The APK is signed with the debug keystore, not a
+  release key. It will not publish to Google Play.
+* **Development API endpoint.** The bundled `PRODUCTION_API_BASE_URL` points at
+  the deployed Vercel API (`https://eunocura-backend.vercel.app`). Set
+  `EUNOCURA_API_BASE=http://10.0.2.2:8000` as an env var or use the Settings
+  sheet to point at a local backend.
+* **Mixed-content allowed.** `capacitor.config.ts` uses `androidScheme: 'http'`,
+  `cleartext: true`, and `webContentsDebuggingEnabled: true` so the app can
+  talk to a local HTTP server. These are all wrong for a store release.
+* **Generation backend = Gemini.** The production API calls Gemini for text
+  generation. A local `ollama` endpoint is available if you override `EUNOCURA_API_BASE`.
+
+### Building yourself
+
+```bash
+cd frontend
+npm run mobile:apk          # builds, syncs, assembles app-release.apk
+```
+
+The output is at `android/app/build/outputs/apk/release/app-release.apk`.
+
+### Debug keys
+
+To reinstall over an existing debug build:
+
+```powershell
+adb install -r android\sdk\platform-tools\...
+```
+
+—or use Files on the device, since HyperOS may block `adb install` via
+`INSTALL_FAILED_USER_RESTRICTED`.
+
+### Limitations of this build
+
+| | |
+|---|---|
+| **Not a store release** | No production signing key, no Play Store listing |
+| **Debug key** | Anyone can install it, but it cannot be pushed to a device as an upgrade over a released APK |
+| **HTTP API** | The bundled default works out of the box because the API is TLS; local override is optional |
+| **App icon cache** | On MIUI/HyperOS, the launcher icon may stay cached. Force-stop the launcher or reboot if it looks stale |
+
+### Verifying on device
+
+1. Install the APK (via `adb install -r` or Files app).
+2. Open the app; the landing screen shows "EUNOCURA".
+3. Log in with `demo.patient@eunocura.dev` / `Demo@2026`.
+4. Open the device system browser and compare to `https://eunocura.vercel.app`.
+
+Both portals (patient and doctor) load the same React bundle, with bottom navigation
+and dark mode toggle functional.

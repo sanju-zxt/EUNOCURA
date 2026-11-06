@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The demo backend is served over plain HTTP (laptop / emulator loopback), and
+  Android blocks cleartext by default since API 28. Rather than switching the
+  whole app to `usesCleartextTraffic` unconditionally, this config allows
+  cleartext only for the hosts the app is documented to talk to: loopback, the
+  emulator's host alias and private LAN ranges. Everything else still requires
+  TLS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- The Android emulator's alias for the host machine's loopback. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- `adb reverse tcp:8000 tcp:8000` makes the phone's own loopback work. -->
+        <domain includeSubdomains="true">192.168.0.0</domain>
+        <domain includeSubdomains="true">192.168.1.0</domain>
+        <domain includeSubdomains="true">10.0.0.0</domain>
+    </domain-config>
+</network-security-config>

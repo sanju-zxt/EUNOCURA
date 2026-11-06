@@ -1,0 +1,54 @@
+{
+  "name": "EUNOCURA — Clinical Document Intelligence",
+  "short_name": "EUNOCURA",
+  "description": "Open-weight clinical document intelligence: appointments, prescriptions, lab trends and citation-audited answers for patients and clinicians.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#0284c7",
+  "theme_color": "#0284c7",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["medical", "health", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/eunocura.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My appointments",
+      "short_name": "Appointments",
+      "url": "/patient/appointments"
+    },
+    {
+      "name": "Book an appointment",
+      "short_name": "Book",
+      "url": "/patient/book-appointment"
+    }
+  ]
+}

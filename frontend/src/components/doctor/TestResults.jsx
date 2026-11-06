@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '../../utils/api';
+import useIsMobile from '../mobile/useIsMobile';
 
 const PALETTE = ['#0ea5e9', '#8b5cf6', '#ef4444', '#f59e0b', '#10b981', '#ec4899', '#6366f1'];
 
@@ -60,6 +61,17 @@ const StatusPill = ({ status }) => {
       {key ? key.toUpperCase() : 'UNKNOWN'}
     </span>
   );
+};
+
+/**
+ * The reference cell, shared by the table and the phone card list so the two never
+ * drift. Only the bounds the record actually carries are described.
+ */
+const describeReference = (row) => {
+  if (isNum(row.low) && isNum(row.high)) return `${formatValue(row.low)} – ${formatValue(row.high)}`;
+  if (isNum(row.high)) return `below ${formatValue(row.high)}`;
+  if (isNum(row.low)) return `above ${formatValue(row.low)}`;
+  return '—';
 };
 
 /**
@@ -112,6 +124,7 @@ export const referenceForTest = (items, testName) => {
 const TestResults = ({ patientId: patientIdProp = '' }) => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const isMobile = useIsMobile();
   const patientId = patientIdProp || searchParams.get('patientId') || '';
   const isDoctor = user?.role === 'doctor';
 
@@ -278,9 +291,11 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
       : null;
 
   const header = (
-    <div className="mb-8">
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Test Results &amp; Trends</h2>
-      <p className="text-gray-600 dark:text-gray-400">
+    <div className="mb-6 sm:mb-8">
+      <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2 break-words">
+        Test Results &amp; Trends
+      </h2>
+      <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
         {isDoctor
           ? 'Laboratory values recorded for the selected patient, charted from the source records'
           : 'Your laboratory values over time, charted from your records'}
@@ -292,10 +307,10 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
     return (
       <div className="max-w-7xl mx-auto">
         {header}
-        <div className="card text-center py-20">
+        <div className="card text-center px-4 py-12 sm:py-20">
           <User className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Select a patient</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">Select a patient</h3>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Open a patient from the Patients screen to review their laboratory trends.
           </p>
         </div>
@@ -307,9 +322,9 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
     return (
       <div className="max-w-7xl mx-auto">
         {header}
-        <div className="card flex flex-col items-center justify-center py-20">
+        <div className="card flex flex-col items-center justify-center px-4 py-12 sm:py-20">
           <Loader className="w-10 h-10 text-primary-600 dark:text-primary-400 animate-spin mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Loading lab results...</p>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading lab results...</p>
         </div>
       </div>
     );
@@ -319,13 +334,13 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
     return (
       <div className="max-w-7xl mx-auto">
         {header}
-        <div className="card text-center py-16 border-2 border-dashed border-red-200 dark:border-red-900/50">
+        <div className="card text-center px-4 py-12 sm:py-16 border-2 border-dashed border-red-200 dark:border-red-900/50">
           <AlertTriangle className="w-12 h-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Could not load lab results</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-xl mx-auto">{error}</p>
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">Could not load lab results</h3>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-6 max-w-xl mx-auto break-words">{error}</p>
           <button
             onClick={() => setReloadKey((key) => key + 1)}
-            className="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+            className="tap inline-flex w-full items-center justify-center px-4 py-2 sm:w-auto bg-primary-600 hover:bg-primary-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
@@ -339,12 +354,12 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
     return (
       <div className="max-w-7xl mx-auto">
         {header}
-        <div className="card text-center py-20">
+        <div className="card text-center px-4 py-12 sm:py-20">
           <FlaskConical className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">
             No lab results recorded for this patient
           </h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             Nothing has been recorded yet. Trends will appear here once lab values are added.
           </p>
         </div>
@@ -356,52 +371,57 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
     <div className="max-w-7xl mx-auto">
       {header}
 
-      {/* Test selector, built from the returned series keys */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        {testNames.map((name, index) => {
-          const testLatest = latestFor(name);
-          return (
-            <button
-              key={name}
-              type="button"
-              onClick={() => setSelectedTest(name)}
-              className={`card text-center transition-all ${
-                activeTest === name
-                  ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                  : 'hover:shadow-lg'
-              }`}
-            >
-              <div className="flex items-center justify-center mb-2">
-                {trendIcon(activeTest === name ? trend : 'stable')}
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 break-words" title={name}>
-                {name}
-              </p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">
-                {testLatest ? formatValue(testLatest.v) : '—'}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{testLatest?.unit || ''}</p>
-              <span
-                className="block h-1 w-8 mx-auto mt-2 rounded-full"
-                style={{ backgroundColor: PALETTE[index % PALETTE.length] }}
-              />
-            </button>
-          );
-        })}
+      {/* Test selector, built from the returned series keys. On a phone it is a
+          filter row that scrolls sideways; at md+ it is the same grid as before.
+          `.scroll-x` is only applied below md, because it clips the card shadows
+          on the one axis it fixes. */}
+      <div className={`mb-6 ${isMobile ? 'scroll-x' : ''}`}>
+        <div className="flex gap-3 px-1 py-1 md:grid md:grid-cols-4 md:gap-3 md:px-0 md:py-0 lg:grid-cols-6">
+          {testNames.map((name, index) => {
+            const testLatest = latestFor(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setSelectedTest(name)}
+                className={`card tap w-[9.5rem] flex-shrink-0 p-3 text-center transition-all md:w-auto md:p-6 ${
+                  activeTest === name
+                    ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                    : 'hover:shadow-lg'
+                }`}
+              >
+                <div className="flex items-center justify-center mb-2">
+                  {trendIcon(activeTest === name ? trend : 'stable')}
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 break-words" title={name}>
+                  {name}
+                </p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">
+                  {testLatest ? formatValue(testLatest.v) : '—'}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{testLatest?.unit || ''}</p>
+                <span
+                  className="block h-1 w-8 mx-auto mt-2 rounded-full"
+                  style={{ backgroundColor: PALETTE[index % PALETTE.length] }}
+                />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Trend chart */}
-      <div className="card mb-6">
-        <div className="flex flex-wrap items-start justify-between mb-6 gap-3">
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{activeTest}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+      <div className="card mb-6 p-4 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between mb-4 sm:mb-6 gap-3">
+          <div className="min-w-0">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white break-words">{activeTest}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
               {latest
                 ? `Latest: ${formatValue(latest.v)} ${selectedUnit} on ${formatDate(latest.taken_at)}`.trim()
                 : 'No values for this test'}
             </p>
             {rangeText && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Reference range: {rangeText}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-words">Reference range: {rangeText}</p>
             )}
           </div>
           <span className="text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold">
@@ -409,112 +429,158 @@ const TestResults = ({ patientId: patientIdProp = '' }) => {
           </span>
         </div>
 
-        <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={selectedPoints} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#9ca3af" strokeOpacity={0.35} />
-            <XAxis
-              dataKey="time"
-              type="number"
-              domain={xDomain}
-              scale="time"
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              tickFormatter={(value) => formatDate(new Date(value).toISOString(), { month: 'short', day: 'numeric' })}
-            />
-            <YAxis domain={yDomain} tick={{ fontSize: 12, fill: '#6b7280' }} width={56} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'rgba(17, 24, 39, 0.95)',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#f9fafb',
-              }}
-              labelStyle={{ color: '#f9fafb' }}
-              labelFormatter={(value) => formatDate(new Date(value).toISOString())}
-              formatter={(value) => [`${formatValue(value)} ${selectedUnit}`.trim(), activeTest]}
-            />
-            <Legend />
-            {reference?.low !== undefined && reference?.high !== undefined && (
-              <ReferenceArea
-                y1={reference.low}
-                y2={reference.high}
-                fill="#10b981"
-                fillOpacity={0.12}
-                stroke="#10b981"
-                strokeOpacity={0.35}
-                label={{
-                  value: 'reference range',
-                  position: 'insideTopRight',
-                  fill: '#059669',
-                  fontSize: 11,
-                }}
+        {/* The wrapper carries the height, so ResponsiveContainer always measures
+            a real box on a phone instead of collapsing to 0px. */}
+        <div className="h-[280px] min-h-[220px] w-full sm:h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={selectedPoints} margin={{ top: 8, right: isMobile ? 8 : 16, bottom: 8, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#9ca3af" strokeOpacity={0.35} />
+              <XAxis
+                dataKey="time"
+                type="number"
+                domain={xDomain}
+                scale="time"
+                tick={{ fontSize: isMobile ? 11 : 12, fill: '#6b7280' }}
+                minTickGap={isMobile ? 28 : 5}
+                tickFormatter={(value) => formatDate(new Date(value).toISOString(), { month: 'short', day: 'numeric' })}
               />
-            )}
-            {reference?.low !== undefined && reference?.high === undefined && (
-              <ReferenceLine y={reference.low} stroke="#10b981" strokeDasharray="4 4" />
-            )}
-            {reference?.high !== undefined && reference?.low === undefined && (
-              <ReferenceLine y={reference.high} stroke="#10b981" strokeDasharray="4 4" />
-            )}
-            <Line
-              type="linear"
-              dataKey="v"
-              stroke={PALETTE[Math.max(0, testNames.indexOf(activeTest)) % PALETTE.length]}
-              strokeWidth={3}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-              isAnimationActive={false}
-              name={selectedUnit ? `${activeTest} (${selectedUnit})` : activeTest}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+              <YAxis domain={yDomain} tick={{ fontSize: isMobile ? 11 : 12 }} width={isMobile ? 46 : 56} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#f9fafb',
+                }}
+                labelStyle={{ color: '#f9fafb' }}
+                labelFormatter={(value) => formatDate(new Date(value).toISOString())}
+                formatter={(value) => [`${formatValue(value)} ${selectedUnit}`.trim(), activeTest]}
+              />
+              <Legend />
+              {reference?.low !== undefined && reference?.high !== undefined && (
+                <ReferenceArea
+                  y1={reference.low}
+                  y2={reference.high}
+                  fill="#10b981"
+                  fillOpacity={0.12}
+                  stroke="#10b981"
+                  strokeOpacity={0.35}
+                  label={{
+                    value: 'reference range',
+                    position: 'insideTopRight',
+                    fill: '#059669',
+                    fontSize: 11,
+                  }}
+                />
+              )}
+              {reference?.low !== undefined && reference?.high === undefined && (
+                <ReferenceLine y={reference.low} stroke="#10b981" strokeDasharray="4 4" />
+              )}
+              {reference?.high !== undefined && reference?.low === undefined && (
+                <ReferenceLine y={reference.high} stroke="#10b981" strokeDasharray="4 4" />
+              )}
+              <Line
+                type="linear"
+                dataKey="v"
+                stroke={PALETTE[Math.max(0, testNames.indexOf(activeTest)) % PALETTE.length]}
+                strokeWidth={3}
+                dot={{ r: isMobile ? 3 : 4 }}
+                activeDot={{ r: 6 }}
+                isAnimationActive={false}
+                name={selectedUnit ? `${activeTest} (${selectedUnit})` : activeTest}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* Values table */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">{activeTest} readings</h3>
-          <span className="text-sm text-gray-600 dark:text-gray-400">{rows.length} record{rows.length === 1 ? '' : 's'}</span>
+      {/* Values table: a card list on a phone, the same table at md+ */}
+      <div className="card p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white break-words">
+            {activeTest} readings
+          </h3>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {rows.length} record{rows.length === 1 ? '' : 's'}
+          </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                <th className="py-3 pr-4 font-semibold">Taken</th>
-                <th className="py-3 pr-4 font-semibold">Value</th>
-                <th className="py-3 pr-4 font-semibold">Status</th>
-                <th className="py-3 pr-4 font-semibold">Reference</th>
-                <th className="py-3 font-semibold">Source</th>
-              </tr>
-            </thead>
-            <tbody>
+        {rows.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 px-4 py-8 text-center">
+            <FlaskConical className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" aria-hidden="true" />
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              No results recorded for this test
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Nothing has been recorded for {activeTest} yet, so there is no reading to list.
+            </p>
+          </div>
+        ) : (
+          <>
+            <ul className="space-y-3 md:hidden">
               {rows.map((row) => (
-                <tr
+                <li
                   key={row.id}
-                  className="border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  className="rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-3 transition-colors duration-150"
                 >
-                  <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatDate(row.taken_at)}</td>
-                  <td className="py-3 pr-4 font-semibold text-gray-900 dark:text-white">
-                    {formatValue(row.value)} {row.unit || ''}
-                  </td>
-                  <td className="py-3 pr-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-gray-900 dark:text-white break-words">
+                        {formatValue(row.value)} {row.unit || ''}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{formatDate(row.taken_at)}</p>
+                    </div>
                     <StatusPill status={row.status} />
-                  </td>
-                  <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">
-                    {isNum(row.low) && isNum(row.high)
-                      ? `${formatValue(row.low)} – ${formatValue(row.high)}`
-                      : isNum(row.high)
-                      ? `below ${formatValue(row.high)}`
-                      : isNum(row.low)
-                      ? `above ${formatValue(row.low)}`
-                      : '—'}
-                  </td>
-                  <td className="py-3 text-gray-600 dark:text-gray-400 capitalize">{row.source || '—'}</td>
-                </tr>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-gray-500 dark:text-gray-400">Reference</dt>
+                      <dd className="text-gray-700 dark:text-gray-300 break-words">{describeReference(row)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-gray-500 dark:text-gray-400">Source</dt>
+                      <dd className="text-gray-700 dark:text-gray-300 capitalize break-words">
+                        {row.source || '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </ul>
+
+            <div className="scroll-x hidden md:block">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th className="py-3 pr-4 font-semibold">Taken</th>
+                    <th className="py-3 pr-4 font-semibold">Value</th>
+                    <th className="py-3 pr-4 font-semibold">Status</th>
+                    <th className="py-3 pr-4 font-semibold">Reference</th>
+                    <th className="py-3 font-semibold">Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      <td className="py-3 pr-4 text-gray-700 dark:text-gray-300">{formatDate(row.taken_at)}</td>
+                      <td className="py-3 pr-4 font-semibold text-gray-900 dark:text-white">
+                        {formatValue(row.value)} {row.unit || ''}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <StatusPill status={row.status} />
+                      </td>
+                      <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{describeReference(row)}</td>
+                      <td className="py-3 text-gray-600 dark:text-gray-400 capitalize">{row.source || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

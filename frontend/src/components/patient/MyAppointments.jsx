@@ -81,6 +81,14 @@ const newestFirst = (a, b) => {
 
 const documentName = (doc, fallback) => doc?.doc_name || doc?.name || fallback;
 
+// Phone-only view filter. Desktop keeps both sections on screen, so this row is
+// `md:hidden` and the default scope is "all".
+const SCOPES = [
+  { key: 'all', label: 'All' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'past', label: 'Past' },
+];
+
 const DocumentsRow = ({ icon: Icon, iconClass, label, detail, href }) => (
   <div className="flex items-start justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/60">
     <div className="flex items-start space-x-2 min-w-0">
@@ -95,7 +103,7 @@ const DocumentsRow = ({ icon: Icon, iconClass, label, detail, href }) => (
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 whitespace-nowrap transition-colors"
+        className="tap md:min-h-0 md:min-w-0 inline-flex shrink-0 items-center justify-center rounded px-1 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 whitespace-nowrap transition-colors"
       >
         Open
       </a>
@@ -124,36 +132,40 @@ const AppointmentCard = ({ appointment, expanded, onToggleNote }) => {
   const hasNote = Boolean(clinicianNote) || Boolean(summary);
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md dark:hover:bg-gray-700/50 transition-all">
-      <div className="flex items-start justify-between mb-3 gap-3">
-        <div className="flex items-start space-x-3 min-w-0">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3.5 sm:p-4 hover:shadow-md dark:hover:bg-gray-700/50 transition-all">
+      {/* Phone: name and status stack (the badge gets its own line instead of
+          being squeezed or clipped). Desktop: unchanged single row. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-3">
+        <div className="flex items-start space-x-3 min-w-0 w-full sm:w-auto">
           <StatusIcon status={appointment.status} />
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white break-words">{doctorName}</h3>
-            <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
-              <Stethoscope className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
-              {specialization || 'Speciality not recorded'}
+            <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white break-words">{doctorName}</h3>
+            <p className="text-sm text-blue-600 dark:text-blue-400 flex items-start">
+              <Stethoscope className="w-3.5 h-3.5 mr-1 mt-1 flex-shrink-0" />
+              <span className="min-w-0 break-words">{specialization || 'Speciality not recorded'}</span>
             </p>
           </div>
         </div>
-        <span className={`text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap ${badge.pill}`}>
+        <span
+          className={`inline-flex max-w-full items-center text-xs px-3 py-1 rounded-full font-semibold break-words sm:whitespace-nowrap ${badge.pill}`}
+        >
           {badge.label}
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="flex items-start space-x-2">
+        <div className="flex items-start space-x-2 min-w-0">
           <Calendar className="w-4 h-4 mt-0.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-600 dark:text-gray-400">Date</p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{dateLabel || 'Not recorded'}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">{dateLabel || 'Not recorded'}</p>
           </div>
         </div>
-        <div className="flex items-start space-x-2">
+        <div className="flex items-start space-x-2 min-w-0">
           <Clock className="w-4 h-4 mt-0.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-600 dark:text-gray-400">Time</p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white break-words">
               {startLabel ? (endLabel ? `${startLabel} – ${endLabel}` : startLabel) : 'Not recorded'}
             </p>
           </div>
@@ -222,14 +234,14 @@ const AppointmentCard = ({ appointment, expanded, onToggleNote }) => {
           <button
             type="button"
             onClick={onToggleNote}
-            className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 inline-flex items-center transition-colors"
+            className="tap md:min-h-0 md:min-w-0 -ml-1 inline-flex items-center rounded-lg px-1 text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 md:ml-0 md:px-0 transition-colors"
           >
             {expanded ? 'Hide visit note' : 'View visit note'}
             {expanded ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />}
           </button>
 
           {expanded && (
-            <div className="mt-3 space-y-3 max-h-96 overflow-y-auto">
+            <div className="mt-3 space-y-3 max-h-96 overflow-y-auto overscroll-contain">
               {summary && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
                   <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">Visit summary</p>
@@ -259,8 +271,8 @@ const AppointmentCard = ({ appointment, expanded, onToggleNote }) => {
 const Skeleton = () => (
   <div className="space-y-4 animate-pulse">
     {[0, 1].map((row) => (
-      <div key={row} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="h-5 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+      <div key={row} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3.5 sm:p-4">
+        <div className="h-5 w-48 max-w-full bg-gray-200 dark:bg-gray-700 rounded mb-2" />
         <div className="h-3 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded" />
@@ -280,6 +292,7 @@ const MyAppointments = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [scope, setScope] = useState('all');
 
   const load = useCallback(async () => {
     if (!patientId) {
@@ -327,17 +340,25 @@ const MyAppointments = () => {
 
   const completedCount = items.filter((appointment) => normaliseStatus(appointment?.status) === 'completed').length;
 
+  const scopeCounts = {
+    all: items.length,
+    upcoming: upcomingAppointments.length,
+    past: pastAppointments.length,
+  };
+
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">My Appointments</h2>
-        <p className="text-gray-600 dark:text-gray-400">Your consultations on record from your care team</p>
+      <div className="mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">My Appointments</h2>
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+          Your consultations on record from your care team
+        </p>
       </div>
 
       {loading && (
-        <div className="card mb-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-            <Calendar className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
+        <div className="card p-4 sm:p-6 mb-6">
+          <h3 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+            <Calendar className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             Loading your appointments
           </h3>
           <Skeleton />
@@ -345,13 +366,17 @@ const MyAppointments = () => {
       )}
 
       {!loading && error && (
-        <div className="card mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
+        <div className="card p-4 sm:p-6 mb-6 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
           <div className="flex items-start space-x-3">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-red-900 dark:text-red-200 mb-1">Could not load your appointments</h3>
-              <p className="text-sm text-red-800 dark:text-red-300 mb-3">{error}</p>
-              <button type="button" onClick={load} className="btn-secondary text-sm inline-flex items-center">
+              <p className="text-sm text-red-800 dark:text-red-300 mb-3 break-words">{error}</p>
+              <button
+                type="button"
+                onClick={load}
+                className="btn-secondary tap md:min-h-0 md:min-w-0 text-sm inline-flex items-center"
+              >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
               </button>
@@ -361,13 +386,16 @@ const MyAppointments = () => {
       )}
 
       {!loading && !error && items.length === 0 && (
-        <div className="card mb-6 text-center py-12 hover:shadow-xl transition-all duration-200">
+        <div className="card p-4 sm:p-6 mb-6 text-center py-10 sm:py-12 hover:shadow-xl transition-all duration-200">
           <Calendar className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-700 dark:text-gray-300 font-semibold mb-1">No appointments yet</p>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Appointments appear here once one is booked for you.
           </p>
-          <Link to="/patient/book-appointment" className="btn-primary text-sm inline-flex items-center">
+          <Link
+            to="/patient/book-appointment"
+            className="btn-primary tap md:min-h-0 md:min-w-0 text-sm inline-flex items-center justify-center w-full sm:w-auto"
+          >
             <CalendarPlus className="w-4 h-4 mr-2" />
             Book an appointment
           </Link>
@@ -376,95 +404,133 @@ const MyAppointments = () => {
 
       {!loading && !error && items.length > 0 && (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
+            <div className="card p-3 sm:p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-900 dark:text-blue-100">{items.length}</div>
-                <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Total Appointments</p>
+                <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100">{items.length}</div>
+                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium leading-tight">
+                  Total Appointments
+                </p>
               </div>
             </div>
-            <div className="card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="card p-3 sm:p-6 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-900 dark:text-green-100">{upcomingAppointments.length}</div>
-                <p className="text-sm text-green-700 dark:text-green-300 font-medium">Upcoming</p>
+                <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-100">
+                  {upcomingAppointments.length}
+                </div>
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-medium leading-tight">Upcoming</p>
               </div>
             </div>
-            <div className="card bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 border-gray-200 dark:border-gray-600 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
+            <div className="card p-3 sm:p-6 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 border-gray-200 dark:border-gray-600 hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1">
               <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{completedCount}</div>
-                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">Completed</p>
+                <div className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{completedCount}</div>
+                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 font-medium leading-tight">Completed</p>
               </div>
             </div>
           </div>
 
-          <div className="card mb-6 hover:shadow-xl transition-all duration-200">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-              <Calendar className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
-              Upcoming Appointments ({upcomingAppointments.length})
-            </h3>
-            {upcomingAppointments.length > 0 ? (
-              <div className="space-y-4">
-                {upcomingAppointments.map((appointment, index) => (
-                  <AppointmentCard
-                    key={appointment._id || appointment.id || `upcoming-${index}`}
-                    appointment={appointment}
-                    expanded={expandedId === (appointment._id || appointment.id)}
-                    onToggleNote={() =>
-                      setExpandedId((current) =>
-                        current === (appointment._id || appointment.id) ? null : appointment._id || appointment.id
-                      )
-                    }
-                  />
-                ))}
+          {/* Phone-only filter. It sticks under the 56px portal header and never
+              widens the page: the chip row scrolls inside `.scroll-x`. */}
+          <div
+            className="md:hidden sticky z-10 -mx-4 px-4 py-2 mb-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm"
+            style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}
+          >
+            <div className="scroll-x" role="group" aria-label="Filter appointments">
+              <div className="flex w-max gap-2">
+                {SCOPES.map((option) => {
+                  const active = scope === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setScope(option.key)}
+                      aria-pressed={active}
+                      className={`tap shrink-0 inline-flex items-center justify-center rounded-full border px-3.5 text-sm font-semibold transition-colors ${
+                        active
+                          ? 'bg-primary-600 border-primary-600 text-white'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {option.label} ({scopeCounts[option.key]})
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                No upcoming appointments. Book one when you need a consultation.
-              </p>
-            )}
+            </div>
           </div>
 
-          <div className="card hover:shadow-xl transition-all duration-200">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-              <CheckCircle className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400" />
-              Past Appointments ({pastAppointments.length})
-            </h3>
-            {pastAppointments.length > 0 ? (
-              <div className="space-y-4">
-                {pastAppointments.map((appointment, index) => (
-                  <AppointmentCard
-                    key={appointment._id || appointment.id || `past-${index}`}
-                    appointment={appointment}
-                    expanded={expandedId === (appointment._id || appointment.id)}
-                    onToggleNote={() =>
-                      setExpandedId((current) =>
-                        current === (appointment._id || appointment.id) ? null : appointment._id || appointment.id
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">No past appointments on record.</p>
-            )}
-          </div>
+          {scope !== 'past' && (
+            <div className="card p-4 sm:p-6 mb-6 hover:shadow-xl transition-all duration-200">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                <Calendar className="w-5 h-5 mr-2 text-green-600 dark:text-green-400 flex-shrink-0" />
+                Upcoming Appointments ({upcomingAppointments.length})
+              </h3>
+              {upcomingAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingAppointments.map((appointment, index) => (
+                    <AppointmentCard
+                      key={appointment._id || appointment.id || `upcoming-${index}`}
+                      appointment={appointment}
+                      expanded={expandedId === (appointment._id || appointment.id)}
+                      onToggleNote={() =>
+                        setExpandedId((current) =>
+                          current === (appointment._id || appointment.id) ? null : appointment._id || appointment.id
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  No upcoming appointments. Book one when you need a consultation.
+                </p>
+              )}
+            </div>
+          )}
+
+          {scope !== 'upcoming' && (
+            <div className="card p-4 sm:p-6 hover:shadow-xl transition-all duration-200">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                <CheckCircle className="w-5 h-5 mr-2 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                Past Appointments ({pastAppointments.length})
+              </h3>
+              {pastAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {pastAppointments.map((appointment, index) => (
+                    <AppointmentCard
+                      key={appointment._id || appointment.id || `past-${index}`}
+                      appointment={appointment}
+                      expanded={expandedId === (appointment._id || appointment.id)}
+                      onToggleNote={() =>
+                        setExpandedId((current) =>
+                          current === (appointment._id || appointment.id) ? null : appointment._id || appointment.id
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 dark:text-gray-400">No past appointments on record.</p>
+              )}
+            </div>
+          )}
         </>
       )}
 
-      <div className="card mt-8 bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20 border-2 border-teal-200 dark:border-teal-700 hover:shadow-xl transition-all duration-200">
+      <div className="card p-4 sm:p-6 mt-8 bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20 border-2 border-teal-200 dark:border-teal-700 hover:shadow-xl transition-all duration-200">
         <div className="flex items-start space-x-3">
-          <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-2 rounded-xl shadow-md">
+          <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-2 rounded-xl shadow-md flex-shrink-0">
             <CalendarPlus className="w-5 h-5 text-white" />
           </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Need a different slot?</h3>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-2">Need a different slot?</h3>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
               Appointments on this page are created and updated by your care team. To change one, ask your doctor
               or book a new slot.
             </p>
             <Link
               to="/patient/book-appointment"
-              className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 text-sm font-semibold transition-colors"
+              className="tap md:min-h-0 md:min-w-0 -ml-1 inline-flex items-center rounded-lg px-1 text-sm font-semibold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 md:ml-0 md:px-0 transition-colors"
             >
               Book an appointment
             </Link>

@@ -17,6 +17,8 @@ import {
   X,
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
+import MobileSheet from '../mobile/MobileSheet';
+import useIsMobile from '../mobile/useIsMobile';
 
 const ALL_SPECIALTIES = '__all__';
 
@@ -155,6 +157,10 @@ const BookAppointment = () => {
   const [submitError, setSubmitError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+
+  // The wizard has two shapes: the dialog below stays exactly as it was for
+  // md+, and the phone gets a full-height stepped sheet.
+  const isMobile = useIsMobile();
 
   const loadDoctors = useCallback(async () => {
     setLoading(true);
@@ -302,7 +308,7 @@ const BookAppointment = () => {
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-3">
             <div className="min-w-0">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white break-words">{doctor.name}</h3>
               <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold flex items-center">
@@ -310,21 +316,21 @@ const BookAppointment = () => {
                 {doctor.specialization || 'Speciality not recorded'}
               </p>
             </div>
-            <span className="text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+            <span className="self-start text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
               {doctor.years_experience === null || doctor.years_experience === undefined
                 ? 'Experience not recorded'
                 : `${doctor.years_experience} yrs exp.`}
             </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col gap-3 pt-3 border-t border-gray-200 dark:border-gray-700 md:flex-row md:items-center md:justify-between">
             <p className="text-xs text-gray-600 dark:text-gray-400">
               Slots are 30 minutes, {formatSlot(TIME_SLOTS[0])} to {formatSlot(TIME_SLOTS[TIME_SLOTS.length - 1])}
             </p>
             <button
               type="button"
               onClick={() => openBooking(doctor)}
-              className="bg-gradient-to-br from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 whitespace-nowrap"
+              className="w-full md:w-auto justify-center py-2.5 md:py-2 bg-gradient-to-br from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 whitespace-nowrap"
             >
               <Calendar className="w-4 h-4" />
               <span>Choose slot</span>
@@ -591,6 +597,279 @@ const BookAppointment = () => {
     );
   };
 
+  // Phone shape of the same wizard. The frozen MobileSheet owns dismissal,
+  // focus, Escape and the page scroll lock; this component owns the two things
+  // the phone needs: one step on screen at a time, and the action row in the
+  // sheet footer where a thumb can reach it without scrolling.
+  //
+  // Handlers, validation and messages are the ones declared above — the sheet
+  // calls goToReview / confirmBooking / closeBooking, so the payload and the
+  // post-submit behaviour cannot drift from the desktop dialog.
+  const MobileBookingSheet = () => {
+    if (!selectedDoctor) return null;
+
+    const onReview = step === 'review';
+    const dateFieldInvalid = Boolean(selectedDate) && selectedDate < todayISO();
+    const canReview = Boolean(selectedDate) && Boolean(selectedSlot) && !dateFieldInvalid;
+    // Same messages, lifted next to the buttons so a failed check can never be
+    // scrolled out of sight behind the footer.
+    const footerMessage = onReview ? submitError : slotError;
+    const barStates = onReview ? ['done', 'done', 'current'] : ['done', 'current', 'pending'];
+
+    const footer = (
+      <div className="space-y-3">
+        {footerMessage && (
+          <div
+            role="alert"
+            className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg p-3 flex items-start space-x-2"
+          >
+            <AlertCircle
+              className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              {onReview && (
+                <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">
+                  The appointment was not saved
+                </p>
+              )}
+              <p className="text-sm text-red-800 dark:text-red-300 break-words">{footerMessage}</p>
+            </div>
+          </div>
+        )}
+
+        {onReview ? (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setStep('slot')}
+              disabled={submitting}
+              className="tap w-full inline-flex items-center justify-center rounded-lg btn-secondary text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={confirmBooking}
+              disabled={submitting}
+              className="tap w-full inline-flex items-center justify-center space-x-2 px-4 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold text-base transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Check className="w-5 h-5" aria-hidden="true" />
+              )}
+              <span>{submitting ? 'Booking' : 'Confirm booking'}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={closeBooking}
+              className="tap inline-flex items-center justify-center rounded-lg btn-secondary text-base"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={goToReview}
+              disabled={!canReview}
+              className="tap inline-flex items-center justify-center space-x-1.5 px-3 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold text-base transition-all duration-200 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>Review</span>
+              <ChevronRight className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <MobileSheet
+        open
+        onClose={closeBooking}
+        title={selectedDoctor.name}
+        description={selectedDoctor.specialization || 'Speciality not recorded'}
+        closeLabel="Close booking"
+        footer={footer}
+      >
+        {/* Compact step indicator: three bars and the step name on one line, so
+            it costs height instead of a wrapped row of numbered labels. */}
+        <div className="mb-5">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5" aria-hidden="true">
+              {barStates.map((state, index) => (
+                <span
+                  key={index}
+                  className={`h-1.5 rounded-full ${
+                    state === 'pending'
+                      ? 'w-6 bg-gray-200 dark:bg-gray-600'
+                      : `bg-teal-500 ${state === 'current' ? 'w-10' : 'w-6'}`
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="ml-auto flex-shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
+              Step {onReview ? 3 : 2} of 3
+            </span>
+          </div>
+          <p className="mt-1.5 text-sm font-semibold text-gray-900 dark:text-white">
+            {onReview ? 'Review' : 'Date and time'}
+          </p>
+        </div>
+
+        {!onReview && (
+          <>
+            <div className="mb-5">
+              <label
+                htmlFor="appointment-date"
+                className="flex items-center text-sm font-semibold text-gray-900 dark:text-white mb-2"
+              >
+                <Calendar className="w-4 h-4 mr-2 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                Select date
+              </label>
+              <input
+                id="appointment-date"
+                type="date"
+                min={todayISO()}
+                value={selectedDate}
+                onChange={(event) => {
+                  setSelectedDate(event.target.value);
+                  setSelectedSlot(null);
+                  setSlotError(null);
+                }}
+                className="tap w-full px-4 py-3 text-base bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+              />
+              {dateFieldInvalid && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-2 break-words">
+                  Pick today or a later date.
+                </p>
+              )}
+            </div>
+
+            <div className="mb-5">
+              <h3 className="flex items-center text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                <Clock className="w-4 h-4 mr-2 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                Select time slot
+              </h3>
+              {/* Three columns of 44px-high buttons: 17 slots wrap in rows and
+                  never push the sheet wider than the phone. */}
+              <div className="grid grid-cols-3 gap-2">
+                {TIME_SLOTS.map((slot) => {
+                  const disabled = !selectedDate || slotIsPast(selectedDate, slot);
+                  const active = selectedSlot === slot;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={disabled}
+                      aria-pressed={active}
+                      onClick={() => {
+                        setSelectedSlot(slot);
+                        setSlotError(null);
+                      }}
+                      className={`tap px-1 py-2 rounded-lg border-2 transition-all text-sm font-semibold break-words ${
+                        active
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/30 text-teal-900 dark:text-teal-200'
+                          : disabled
+                            ? 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 opacity-50 cursor-not-allowed'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-teal-300 dark:hover:border-teal-700 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {formatSlot(slot)}
+                    </button>
+                  );
+                })}
+              </div>
+              {!selectedDate && (
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">Pick a date to enable the slots.</p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="chief-complaint"
+                className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+              >
+                Reason for visit (optional)
+              </label>
+              <textarea
+                id="chief-complaint"
+                rows={3}
+                maxLength={500}
+                value={complaint}
+                onChange={(event) => setComplaint(event.target.value)}
+                placeholder="What would you like the doctor to look at?"
+                className="w-full px-4 py-3 text-base bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              />
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{complaint.length}/500 characters</p>
+            </div>
+          </>
+        )}
+
+        {onReview && (
+          <>
+            <div className="bg-gradient-to-r from-teal-50 to-blue-50 dark:from-teal-900/20 dark:to-blue-900/20 border-2 border-teal-200 dark:border-teal-700 rounded-lg p-4 mb-4">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Review your appointment</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-600 dark:text-gray-400">Doctor:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white text-right break-words">
+                    {selectedDoctor.name}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-600 dark:text-gray-400">Speciality:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white text-right break-words">
+                    {selectedDoctor.specialization || 'Not recorded'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-600 dark:text-gray-400">Date:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white text-right break-words">
+                    {formatDay(selectedDate)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-600 dark:text-gray-400">Time:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white text-right">
+                    {formatSlot(selectedSlot)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 pt-2 border-t border-teal-300 dark:border-teal-700">
+                  <span className="text-gray-600 dark:text-gray-400">Reason for visit:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white text-right break-words">
+                    {complaint.trim() || 'None given'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Sent exactly as</p>
+              <dl className="text-xs font-mono text-gray-800 dark:text-gray-200 space-y-1 break-all">
+                <div>
+                  <dt className="inline text-gray-500 dark:text-gray-400">appointment_date: </dt>
+                  <dd className="inline">{selectedDate}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-gray-500 dark:text-gray-400">start_time: </dt>
+                  <dd className="inline">{selectedSlot}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-gray-500 dark:text-gray-400">chief_complaint: </dt>
+                  <dd className="inline">{complaint.trim() || '""'}</dd>
+                </div>
+              </dl>
+            </div>
+          </>
+        )}
+      </MobileSheet>
+    );
+  };
+
   if (confirmation) {
     const { appointment, doctor, date, slot, complaint: bookedComplaint } = confirmation;
     const bookedDate =
@@ -608,7 +887,7 @@ const BookAppointment = () => {
     return (
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Book Appointment</h2>
+          <h2 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Book Appointment</h2>
           <p className="text-gray-600 dark:text-gray-400">Your appointment is on your record.</p>
         </div>
 
@@ -668,17 +947,20 @@ const BookAppointment = () => {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Link to="/patient/appointments" className="btn-primary text-sm inline-flex items-center">
+                <Link
+                  to="/patient/appointments"
+                  className="btn-primary text-sm inline-flex items-center min-h-[44px] md:min-h-0"
+                >
                   <Calendar className="w-4 h-4 mr-2" />
                   View my appointments
                 </Link>
-                <Link to="/patient" className="btn-secondary text-sm inline-flex items-center">
+                <Link to="/patient" className="btn-secondary text-sm inline-flex items-center min-h-[44px] md:min-h-0">
                   Back to dashboard
                 </Link>
                 <button
                   type="button"
                   onClick={() => setConfirmation(null)}
-                  className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 text-sm font-semibold transition-colors px-2"
+                  className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 text-sm font-semibold transition-colors px-2 inline-flex items-center min-h-[44px] md:min-h-0"
                 >
                   Book another appointment
                 </button>
@@ -693,7 +975,7 @@ const BookAppointment = () => {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Book Appointment</h2>
+        <h2 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Book Appointment</h2>
         <p className="text-gray-600 dark:text-gray-400">
           Pick a doctor from your care team, then choose a date and time.
         </p>
@@ -708,7 +990,7 @@ const BookAppointment = () => {
               placeholder="Search by doctor name or speciality..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full pl-10 pr-4 py-3 text-base bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
 
@@ -724,7 +1006,7 @@ const BookAppointment = () => {
                 id="specialty-filter"
                 value={selectedSpecialty}
                 onChange={(event) => setSelectedSpecialty(event.target.value)}
-                className="w-full px-4 py-2 pr-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white appearance-none bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat"
+                className="w-full min-h-[44px] md:min-h-0 px-4 py-2 pr-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white appearance-none bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat"
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                 }}
@@ -745,7 +1027,7 @@ const BookAppointment = () => {
                 id="sort-by"
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value)}
-                className="w-full px-4 py-2 pr-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white appearance-none bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat"
+                className="w-full min-h-[44px] md:min-h-0 px-4 py-2 pr-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white appearance-none bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat"
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                 }}
@@ -781,7 +1063,7 @@ const BookAppointment = () => {
               <button
                 type="button"
                 onClick={loadDoctors}
-                className="btn-secondary text-sm inline-flex items-center"
+                className="btn-secondary text-sm inline-flex items-center min-h-[44px] md:min-h-0"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
@@ -800,7 +1082,7 @@ const BookAppointment = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             No doctors are listed yet — the care team has not added any.
           </p>
-          <button type="button" onClick={loadDoctors} className="btn-secondary text-sm inline-flex items-center">
+          <button type="button" onClick={loadDoctors} className="btn-secondary text-sm inline-flex items-center min-h-[44px] md:min-h-0">
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
           </button>
@@ -845,7 +1127,7 @@ const BookAppointment = () => {
                   setSearchQuery('');
                   setSelectedSpecialty(ALL_SPECIALTIES);
                 }}
-                className="btn-secondary text-sm"
+                className="btn-secondary text-sm min-h-[44px] md:min-h-0"
               >
                 Clear filters
               </button>
@@ -854,7 +1136,7 @@ const BookAppointment = () => {
         </>
       )}
 
-      {selectedDoctor && <BookingModal />}
+      {selectedDoctor && (isMobile ? <MobileBookingSheet /> : <BookingModal />)}
     </div>
   );
 };

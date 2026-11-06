@@ -1,0 +1,19 @@
+# What Vercel uploads is the repo root of a monorepo, and this repo keeps a
+# 1.6 GB Python venv and 1.9 GB of local MongoDB state beside the code. Vercel's
+# defaults already skip `node_modules` and `.venv`, but not `.local` — which is
+# where the mongod data files live, and mongod holds them open, so the upload
+# dies with `EBUSY: resource busy or locked, read` before the build even starts.
+#
+# Excluding local state also keeps the upload small enough to be quick: the
+# backend bundle only needs `backend/` minus the venv.
+
+.local/
+**/__pycache__/
+**/*.pyc
+backend/.venv/
+backend/data/uploads/
+frontend/node_modules/
+frontend/dist/
+frontend/android/
+frontend/.vercel/
+work/

@@ -1,14 +1,19 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useId, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Square, Clock, CheckCircle, Upload, FileText, Brain, Download, Eye, Plus, Mic, FileCheck, TestTube2, Sparkles, MessageSquare, Loader, Calendar, Stethoscope, Activity } from 'lucide-react';
 import { ACTIVITY_TYPES } from '../../data/activityTypes';
-import { apiRequest } from '../../utils/api';
+import { apiRequest, resolveAssetUrl, getApiBaseUrl } from '../../utils/api';
+import { hapticTap } from '../../services/native';
+import useIsMobile from '../mobile/useIsMobile';
 import DiagnosisDashboard from '../diagnosis/Main';
 import PDFViewer from './PDFViewer';
 import ChatButton from './ChatButton';
 import AppointmentHistoryCard from './AppointmentHistoryCard';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Resolved per call, not at import: inside the Android shell "localhost" is the
+// phone, so the base has to come from the runtime resolver (10.0.2.2 on the
+// emulator, LAN IP or an override on a real device).
+const apiBase = () => getApiBaseUrl();
 
 function formatApiErrorDetail(detail) {
     if (detail == null) return null;
@@ -22,10 +27,23 @@ function formatApiErrorDetail(detail) {
     return String(detail);
 }
 
+/**
+ * The phone shows one pane at a time (transcript / documents / clinical). The
+ * desktop keeps every pane stacked: each panel wrapper is `md:contents`, so at
+ * `md` and up it generates no box at all and the layout is the same DOM stack
+ * it has always been. Panels are hidden with `display: none` (not unmounted),
+ * so nothing inside them unmounts, refetches or loses its state on a switch.
+ */
+const SESSION_TABS = [
+    { id: 'transcript', label: 'Transcript' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'clinical', label: 'Clinical' },
+];
+
 const RequiredActivities = ({ session }) => (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700 mb-6 transition-colors duration-200">
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Required Activities</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className={`p-4 rounded-lg border-2 transition-all duration-200 ${session?.requiredCompleted?.recording ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'}`}>
                 <div className="flex items-center space-x-2 mb-2">
                     {session?.requiredCompleted?.recording ? (
@@ -86,7 +104,7 @@ const RecordingSection = ({
         <div className="mb-6">
             {/* Live Transcription Display */}
             <div className="card mb-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-600">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between gap-2 mb-4">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center">
                         <Mic className={`w-5 h-5 mr-2 text-blue-600 dark:text-blue-400 ${isRecording ? 'animate-pulse' : ''}`} />
                         {isRecording ? 'Discussion Details' : 'Discussion Details'}
@@ -111,7 +129,7 @@ const RecordingSection = ({
                                     a.click();
                                     URL.revokeObjectURL(url);
                                 }}
-                                className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm flex items-center"
+                                className="tap -mr-1 px-1 rounded text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm flex items-center whitespace-nowrap"
                             >
                                 <Download className="w-4 h-4 mr-1" />
                                 Export
@@ -123,12 +141,12 @@ const RecordingSection = ({
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 max-h-96 overflow-y-auto">
                     <div className="space-y-2">
                         {transcription && (
-                            <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">
+                            <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed break-words">
                                 {transcription}
                             </p>
                         )}
                         {partialTranscript && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap leading-relaxed">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 italic whitespace-pre-wrap leading-relaxed break-words">
                                 {partialTranscript}
                                 {isRecording && (
                                     <span className="inline-block w-2 h-4 bg-blue-500 dark:bg-blue-400 ml-1 animate-pulse"></span>
@@ -154,11 +172,11 @@ const RecordingSection = ({
 
             {/* Recording Controls */}
             {!isFinalized && (
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
                     {!isRecording && transcription.length === 0 ? (
                         <button
                             onClick={onStart}
-                            className="inline-flex items-center justify-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                            className="tap w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                         >
                             <Mic className="w-4 h-4 mr-2" />
                             <span className="text-sm">Start Recording</span>
@@ -166,16 +184,16 @@ const RecordingSection = ({
                     ) : isRecording ? (
                         <button
                             onClick={onStop}
-                            className="inline-flex items-center justify-center px-6 py-2.5 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                            className="tap w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
                         >
                             <Square className="w-4 h-4 mr-2" />
                             <span className="text-sm">Stop ({formatDuration(recordingDuration)})</span>
                         </button>
                     ) : (
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                             <button
                                 onClick={onRedo}
-                                className="inline-flex items-center justify-center px-5 py-2.5 bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 font-semibold rounded-lg transition-all duration-200 border border-yellow-300 dark:border-yellow-700 shadow-sm hover:shadow-md"
+                                className="tap w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 font-semibold rounded-lg transition-all duration-200 border border-yellow-300 dark:border-yellow-700 shadow-sm hover:shadow-md"
                             >
                                 <span className="mr-2 text-base">↺</span>
                                 <span className="text-sm">Redo</span>
@@ -183,7 +201,7 @@ const RecordingSection = ({
                             <button
                                 onClick={onFinalize}
                                 disabled={isFinalizing}
-                                className={`inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg ${isFinalizing 
+                                className={`tap w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg ${isFinalizing 
                                     ? 'bg-gray-400 dark:bg-gray-600 text-white opacity-75 cursor-not-allowed' 
                                     : 'bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white'
                                 }`}
@@ -241,19 +259,19 @@ const UploadSection = ({ title, icon: Icon, colorClass, borderClass, accept, onU
                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Uploaded Files:</h4>
                     <div className="space-y-2">
                         {uploadedFiles.map((file, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
-                                <div className="flex items-center space-x-2 overflow-hidden">
+                            <div key={idx} className="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+                                <div className="flex items-center space-x-2 overflow-hidden min-w-0 flex-1">
                                     <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                                    <span className="text-sm text-gray-700 dark:text-gray-200 truncate" title={file.file_name || file.name || file.doc_name}>
+                                    <span className="text-sm text-gray-700 dark:text-gray-200 break-words md:truncate" title={file.file_name || file.name || file.doc_name}>
                                         {file.file_name || file.name || file.doc_name}
                                     </span>
                                 </div>
                                 {file.uri ? (
                                     <a
-                                        href={file.uri}
+                                        href={resolveAssetUrl(file.uri)}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                                        className="tap inline-flex items-center justify-center flex-shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
                                         title="View Document"
                                     >
                                         <Eye className="w-4 h-4" />
@@ -273,14 +291,20 @@ const UploadSection = ({ title, icon: Icon, colorClass, borderClass, accept, onU
 const ActiveSession = () => {
     const { appointmentId } = useParams();
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
 
     const [appointment, setAppointment] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isFinalizing, setIsFinalizing] = useState(false);
 
+    // Phone-only pane selection. Plain component state, so a re-render from the
+    // live transcription (once a second while recording) never drops the tab.
+    const [activeTab, setActiveTab] = useState(SESSION_TABS[0].id);
     const [expandedActivity, setExpandedActivity] = useState(null);
     const [expandedHistoryId, setExpandedHistoryId] = useState(null); // Keep for now as back compat if needed, but not used by AppointmentHistoryCard
+    const tabBaseId = useId();
+    const tabListRef = useRef(null);
 
     // Audio recording state
     const [isRecording, setIsRecording] = useState(false);
@@ -336,7 +360,7 @@ const ActiveSession = () => {
     const connectWebSocket = () => {
         try {
             // Extract host from API_BASE_URL
-            const url = new URL(API_BASE_URL);
+            const url = new URL(apiBase());
             const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
             // Include appointment_id as query parameter so backend can save transcript
             const wsUrl = `${wsProtocol}//${url.host}/appointments/ws/dictation?appointment_id=${appointmentId}`;
@@ -725,7 +749,7 @@ const ActiveSession = () => {
 
                 // For file uploads, we need to manually construct the request
                 const token = localStorage.getItem('access_token');
-                const url = `${API_BASE_URL}/ingest/document/${appointmentId}?patient_id=${patientId}`;
+                const url = `${apiBase()}/ingest/document/${appointmentId}?patient_id=${patientId}`;
 
                 const headers = {};
                 if (token) {
@@ -827,7 +851,7 @@ const ActiveSession = () => {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const response = await fetch(`${API_BASE_URL}/doctors/upload-pdf`, {
+            const response = await fetch(`${apiBase()}/doctors/upload-pdf`, {
                 method: 'POST',
                 body: formData,
                 headers: headers
@@ -991,7 +1015,7 @@ const ActiveSession = () => {
 
                 // Use fetch directly for multipart/form-data
                 const token = localStorage.getItem('access_token');
-                const uploadResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/appointments/${appointmentId}/upload-diagnosis-files`, {
+                const uploadResponse = await fetch(`${getApiBaseUrl()}/appointments/${appointmentId}/upload-diagnosis-files`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -1187,10 +1211,60 @@ const ActiveSession = () => {
         return (
             <div className="p-6 text-center bg-gray-50 dark:bg-gray-900 min-h-screen">
                 <div className="text-red-500 dark:text-red-400 mb-4">{error || 'Appointment not found'}</div>
-                <button onClick={() => navigate('/doctor')} className="btn-secondary">Back to Dashboard</button>
+                <button onClick={() => navigate('/doctor')} className="btn-secondary tap">Back to Dashboard</button>
             </div>
         );
     }
+
+    // An unknown value falls back to the first tab instead of rendering nothing.
+    const selectedTab = SESSION_TABS.some(tab => tab.id === activeTab) ? activeTab : SESSION_TABS[0].id;
+
+    // Switching panes is local UI only: no fetch, no recording/transcription
+    // transition, no navigation. Panels stay mounted, just display: none.
+    const selectTab = (id) => {
+        const next = SESSION_TABS.some(tab => tab.id === id) ? id : SESSION_TABS[0].id;
+        setActiveTab(next);
+        hapticTap();
+        // Scrolled deep into a long pane the control is off-screen; bring it back
+        // so the next switch is one tap away (and the new pane starts at the top).
+        if (isMobile && tabListRef.current && typeof window !== 'undefined') {
+            const rect = tabListRef.current.getBoundingClientRect();
+            if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                tabListRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+    };
+
+    // Arrow/Home/End move between tabs like native segmented controls.
+    const handleTabListKeyDown = (event) => {
+        const index = SESSION_TABS.findIndex(tab => tab.id === selectedTab);
+        let nextIndex = index;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % SESSION_TABS.length;
+        else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + SESSION_TABS.length) % SESSION_TABS.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = SESSION_TABS.length - 1;
+        else return;
+        event.preventDefault();
+        const nextId = SESSION_TABS[nextIndex].id;
+        selectTab(nextId);
+        const nextTab = tabListRef.current?.querySelector(`[data-tab="${nextId}"]`);
+        if (nextTab) nextTab.focus();
+    };
+
+    // `md:contents` makes the wrapper box disappear at md+, so the desktop
+    // stack is unchanged; below md the wrapper is a plain block or hidden.
+    // The tabpanel role only exists on the phone, where the control exists.
+    const panelProps = (id) => ({
+        className: selectedTab === id ? 'md:contents' : 'hidden md:contents',
+        ...(isMobile
+            ? {
+                role: 'tabpanel',
+                id: `${tabBaseId}-panel-${id}`,
+                'aria-labelledby': `${tabBaseId}-tab-${id}`,
+                tabIndex: 0,
+            }
+            : null),
+    });
 
     const getStatusBadge = (status) => {
         const badges = {
@@ -1209,7 +1283,7 @@ const ActiveSession = () => {
             <div className="mb-6">
                 <button
                     onClick={() => navigate('/doctor')}
-                    className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 mb-4 transition-colors"
+                    className="tap -ml-1 px-1 rounded flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 mb-4 transition-colors"
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back to Dashboard
@@ -1236,11 +1310,11 @@ const ActiveSession = () => {
                 )}
 
                 <div className="card bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-2 border-green-300 dark:border-green-600">
-                    <div className="flex items-start justify-between">
-                        <div>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
                             <div className="flex items-center space-x-3 mb-2">
                                 <div className="w-3 h-3 bg-green-500 dark:bg-green-400 rounded-full animate-pulse"></div>
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ACTIVE SESSION</h2>
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">ACTIVE SESSION</h2>
                             </div>
                             <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-1">{appointment.patient.name}</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-300 font-semibold mb-1 capitalize">Chief Complaint: {appointment.chief_complaint}</p>
@@ -1263,7 +1337,7 @@ const ActiveSession = () => {
                             )}
                         </div>
 
-                        <div className="text-right">
+                        <div className="text-left sm:text-right">
                             <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 mb-2">
                                 <Clock className="w-4 h-4" />
                                 <span className="text-sm">Started: {session?.startedAt}</span>
@@ -1277,51 +1351,96 @@ const ActiveSession = () => {
 
             <RequiredActivities session={session} />
 
-            <RecordingSection
-                isRecording={isRecording}
-                isReviewing={isReviewing}
-                transcription={transcription}
-                discussion_summary={appointment?.discussion_summary}
-                partialTranscript={partialTranscript}
-                isConnected={isConnected}
-                recordingDuration={recordingDuration}
-                onStart={handleStartRecording}
-                onStop={handleStopRecording}
-                onRedo={handleRedoRecording}
-                onFinalize={handleFinalizeRecording}
-                formatDuration={formatDuration}
-                appointmentId={appointmentId}
-                isFinalizing={isFinalizing}
-            />
+            {/* Phone only: the stacked panes become one at a time. The control is
+                `md:hidden` and each panel below is `md:contents`, so at md+ the
+                desktop stack is exactly what it was. */}
+            <div className="md:hidden mb-4">
+                <div
+                    ref={tabListRef}
+                    role="tablist"
+                    aria-label="Session sections"
+                    onKeyDown={handleTabListKeyDown}
+                    className="flex gap-1 p-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+                >
+                    {SESSION_TABS.map((tab) => {
+                        const selected = selectedTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                id={`${tabBaseId}-tab-${tab.id}`}
+                                data-tab={tab.id}
+                                role="tab"
+                                aria-selected={selected}
+                                aria-controls={`${tabBaseId}-panel-${tab.id}`}
+                                aria-label={tab.id === 'transcript' && isRecording ? 'Transcript, recording in progress' : undefined}
+                                onClick={() => selectTab(tab.id)}
+                                className={`tap flex-1 min-w-0 px-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${selected
+                                    ? 'bg-primary-600 text-white shadow'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                            >
+                                {tab.label}
+                                {/* Recording keeps running on any tab — show it. */}
+                                {tab.id === 'transcript' && isRecording && (
+                                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <UploadSection
-                    title="Reports"
-                    icon={FileText}
-                    colorClass="bg-purple-50"
-                    borderClass="border-purple-300"
-                    accept=".pdf,.doc,.docx,.txt"
-                    onUpload={(e) => handleFileUpload(e, 'report')}
-                    uploading={uploading}
-                    uploadedFiles={uploadedReports.length > 0 ? uploadedReports : session.reports}
-                />
-
-                <UploadSection
-                    title="Tests & Labs"
-                    icon={TestTube2}
-                    colorClass="bg-orange-50"
-                    borderClass="border-orange-300"
-                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                    onUpload={(e) => handleFileUpload(e, 'test')}
-                    uploading={uploading}
-                    uploadedFiles={uploadedTests.length > 0 ? uploadedTests : session.tests}
+            <div {...panelProps('transcript')}>
+                <RecordingSection
+                    isRecording={isRecording}
+                    isReviewing={isReviewing}
+                    transcription={transcription}
+                    discussion_summary={appointment?.discussion_summary}
+                    partialTranscript={partialTranscript}
+                    isConnected={isConnected}
+                    recordingDuration={recordingDuration}
+                    onStart={handleStartRecording}
+                    onStop={handleStopRecording}
+                    onRedo={handleRedoRecording}
+                    onFinalize={handleFinalizeRecording}
+                    formatDuration={formatDuration}
+                    appointmentId={appointmentId}
+                    isFinalizing={isFinalizing}
                 />
             </div>
 
-            {/* Generate Diagnosis Button - Show before diagnosis is generated */}
-            {!appointment.diagnosis_generated_at && (
+            <div {...panelProps('documents')}>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <UploadSection
+                        title="Reports"
+                        icon={FileText}
+                        colorClass="bg-purple-50"
+                        borderClass="border-purple-300"
+                        accept=".pdf,.doc,.docx,.txt"
+                        onUpload={(e) => handleFileUpload(e, 'report')}
+                        uploading={uploading}
+                        uploadedFiles={uploadedReports.length > 0 ? uploadedReports : session.reports}
+                    />
+
+                    <UploadSection
+                        title="Tests & Labs"
+                        icon={TestTube2}
+                        colorClass="bg-orange-50"
+                        borderClass="border-orange-300"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                        onUpload={(e) => handleFileUpload(e, 'test')}
+                        uploading={uploading}
+                        uploadedFiles={uploadedTests.length > 0 ? uploadedTests : session.tests}
+                    />
+                </div>
+            </div>
+
+            <div {...panelProps('clinical')}>
+                {/* Generate Diagnosis Button - Show before diagnosis is generated */}
+                {!appointment.diagnosis_generated_at && (
                 <div className="mt-6 card bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-2 border-indigo-300 dark:border-indigo-600">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
                                 <Brain className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
@@ -1339,7 +1458,7 @@ const ActiveSession = () => {
                         <button
                             onClick={handleGenerateDiagnosis}
                             disabled={!transcriptRecorded && !documentsUploaded || generatingDiagnosis}
-                            className={`ml-4 px-6 py-3 rounded-lg font-semibold transition-all flex items-center ${(transcriptRecorded || documentsUploaded) && !generatingDiagnosis
+                            className={`tap w-full sm:w-auto sm:ml-4 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center ${(transcriptRecorded || documentsUploaded) && !generatingDiagnosis
                                 ? 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-600 text-white shadow-lg hover:shadow-xl'
                                 : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                                 }`}
@@ -1385,10 +1504,10 @@ const ActiveSession = () => {
             {/* Doctor's Diagnosis Section - Show after AI diagnosis is generated */}
             {appointment.diagnosis_generated_at && (
                 <div className="card mt-6 border-2 border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900/20">
-                    <div className="mb-6 border-b border-green-200 dark:border-green-700 pb-5 flex items-center justify-between">
-                        <div>
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center mb-2">
-                                <Stethoscope className="w-6 h-6 mr-3 text-green-600 dark:text-green-400" />
+                    <div className="mb-6 border-b border-green-200 dark:border-green-700 pb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center mb-2">
+                                <Stethoscope className="w-6 h-6 mr-3 text-green-600 dark:text-green-400 flex-shrink-0" />
                                 Doctor's Diagnosis
                             </h3>
                             <p className="text-base text-gray-700 dark:text-gray-300 mt-2">
@@ -1396,8 +1515,8 @@ const ActiveSession = () => {
                             </p>
                         </div>
                         {appointment.doctor_diagnosis?.submitted_at && (
-                            <div className="bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-bold flex items-center border border-green-200 dark:border-green-700">
-                                <CheckCircle className="w-4 h-4 mr-2" />
+                            <div className="bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 px-4 py-2 rounded-full text-sm font-bold flex items-center border border-green-200 dark:border-green-700 break-words">
+                                <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
                                 Saved on {new Date(appointment.doctor_diagnosis.submitted_at).toLocaleString()}
                             </div>
                         )}
@@ -1407,7 +1526,7 @@ const ActiveSession = () => {
                     {appointment.doctor_diagnosis && (
                         <div className="mb-8 bg-white dark:bg-gray-800 p-6 rounded-lg border border-green-200 dark:border-green-700 shadow-sm">
                             <h4 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Saved Clinical Notes:</h4>
-                            <div className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed mb-6" style={{ fontSize: '16px' }}>
+                            <div className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed mb-6 break-words overflow-hidden" style={{ fontSize: '16px' }}>
                                 {appointment.doctor_diagnosis.text || "No clinical notes provided."}
                             </div>
 
@@ -1416,19 +1535,19 @@ const ActiveSession = () => {
                                     <h4 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">Saved Supporting Documents:</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         {appointment.doctor_diagnosis.files.map((file, idx) => (
-                                            <div key={idx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                                <div className="flex items-center space-x-3 overflow-hidden">
+                                            <div key={idx} className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                                <div className="flex items-center space-x-3 overflow-hidden min-w-0 flex-1">
                                                     <FileText className="w-5 h-5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
-                                                    <span className="text-sm text-gray-800 dark:text-gray-200 truncate font-medium" title={file.name}>
+                                                    <span className="text-sm text-gray-800 dark:text-gray-200 break-words md:truncate font-medium" title={file.name}>
                                                         {file.name}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center space-x-2">
+                                                <div className="flex items-center space-x-2 flex-shrink-0">
                                                     <a
-                                                        href={file.uri}
+                                                        href={resolveAssetUrl(file.uri)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
+                                                        className="tap inline-flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                                                         title="View Document"
                                                     >
                                                         <Eye className="w-5 h-5" />
@@ -1459,7 +1578,7 @@ const ActiveSession = () => {
                                                                 }
                                                             }
                                                         }}
-                                                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors font-bold"
+                                                        className="tap inline-flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors font-bold"
                                                         title="Remove File"
                                                     >
                                                         ×
@@ -1477,7 +1596,7 @@ const ActiveSession = () => {
                                         setDoctorDiagnosisText(appointment.doctor_diagnosis.text);
                                         alert("You can now update your clinical notes below. Re-upload files if you wish to add more.");
                                     }}
-                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold flex items-center"
+                                    className="tap inline-flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold"
                                 >
                                     <Sparkles className="w-4 h-4 mr-2" />
                                     Update Diagnosis
@@ -1526,7 +1645,7 @@ const ActiveSession = () => {
                             />
                             <label
                                 htmlFor="doctor-diagnosis-files"
-                                className={`inline-flex items-center justify-center px-6 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-all duration-200 cursor-pointer border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md ${uploadingDoctorDiagnosis || savingDoctorDiagnosis ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`tap w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-all duration-200 cursor-pointer border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md ${uploadingDoctorDiagnosis || savingDoctorDiagnosis ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {uploadingDoctorDiagnosis ? (
                                     <>
@@ -1547,17 +1666,17 @@ const ActiveSession = () => {
                                     <h4 className="text-base font-bold text-gray-800 dark:text-gray-200 mb-3">Selected for Upload:</h4>
                                     <div className="space-y-3">
                                         {doctorDiagnosisFiles.map((file, idx) => (
-                                            <div key={file.id || idx} className="flex items-center justify-between bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-green-300 dark:hover:border-green-600 transition-colors">
-                                                <div className="flex items-center space-x-3 overflow-hidden flex-1">
+                                            <div key={file.id || idx} className="flex items-center justify-between gap-2 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 hover:border-green-300 dark:hover:border-green-600 transition-colors">
+                                                <div className="flex items-center space-x-3 overflow-hidden min-w-0 flex-1">
                                                     <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                                                    <span className="text-base text-gray-800 dark:text-gray-200 truncate font-medium" title={file.name}>
+                                                    <span className="text-base text-gray-800 dark:text-gray-200 break-words md:truncate font-medium" title={file.name}>
                                                         {file.name}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center space-x-3 ml-4">
+                                                <div className="flex items-center space-x-3 flex-shrink-0">
                                                     <button
                                                         onClick={() => handleRemoveDoctorDiagnosisFile(file.id)}
-                                                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors text-xl font-bold"
+                                                        className="tap inline-flex items-center justify-center text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors text-xl font-bold"
                                                         title="Remove File"
                                                     >
                                                         ×
@@ -1571,13 +1690,13 @@ const ActiveSession = () => {
                         </div>
 
                         {/* Save Button */}
-                        <div className="flex justify-end items-center gap-3 pt-6 border-t-2 border-green-200 dark:border-green-700">
+                        <div className="flex flex-col gap-3 pt-6 border-t-2 border-green-200 dark:border-green-700 sm:flex-row sm:justify-end sm:items-center">
                             <button
                                 onClick={() => {
                                     setDoctorDiagnosisText('');
                                     setDoctorDiagnosisFiles([]);
                                 }}
-                                className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-all duration-200 border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="tap w-full sm:w-auto px-5 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-all duration-200 border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={savingDoctorDiagnosis}
                             >
                                 <span className="text-sm">Clear</span>
@@ -1585,7 +1704,7 @@ const ActiveSession = () => {
                             <button
                                 onClick={handleSaveDoctorDiagnosis}
                                 disabled={savingDoctorDiagnosis || (!doctorDiagnosisText.trim() && doctorDiagnosisFiles.length === 0)}
-                                className={`px-6 py-2.5 rounded-lg font-semibold transition-all flex items-center text-sm shadow-md hover:shadow-lg ${savingDoctorDiagnosis || (!doctorDiagnosisText.trim() && doctorDiagnosisFiles.length === 0)
+                                className={`tap w-full sm:w-auto px-6 py-2.5 rounded-lg font-semibold transition-all flex items-center justify-center text-sm shadow-md hover:shadow-lg ${savingDoctorDiagnosis || (!doctorDiagnosisText.trim() && doctorDiagnosisFiles.length === 0)
                                     ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                                     : 'bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white active:scale-95'
                                     }`}
@@ -1616,7 +1735,7 @@ const ActiveSession = () => {
                         All required activities completed. You can now upload additional documents or generate diagnosis at any time.
                     </p>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button className="card hover:shadow-lg transition-all border-2 border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-left p-4">
                             <div className="flex items-start space-x-3">
                                 <TestTube2 className="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0" />
@@ -1660,24 +1779,25 @@ const ActiveSession = () => {
                     </div>
                 </div>
             )}
+            </div>
 
             {/* Session Controls */}
             <div className="card mt-6 bg-gray-50 dark:bg-gray-800">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">Session Status</p>
                         <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">{appointment.status.split('_').join(' ')}</p>
                     </div>
-                    <div className="flex space-x-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                         <button
                             onClick={handlePauseSession}
-                            className="btn-secondary flex items-center"
+                            className="tap w-full sm:w-auto btn-secondary flex items-center justify-center"
                         >
                             Pause Session
                         </button>
                         <button
                             onClick={handleEndSession}
-                            className="bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors flex items-center"
+                            className="tap w-full sm:w-auto bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors flex items-center justify-center"
                         >
                             <CheckCircle className="w-4 h-4 mr-2" />
                             End Session

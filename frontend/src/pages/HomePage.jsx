@@ -9,25 +9,26 @@ const HomePage = () => {
   const { isAuthenticated, user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-100 dark:border-gray-700 sticky top-0 z-40 backdrop-blur-sm bg-white/95 dark:bg-gray-800/95 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-primary-600 to-primary-700 p-2 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-200">
-                <Heart className="w-8 h-8 text-white" />
+    <div className="min-h-app overflow-x-clip bg-gradient-to-br from-primary-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
+      {/* Header: the phone keeps the wordmark + the one action that matters, and
+          pads itself out of the status bar. Desktop keeps the original height. */}
+      <header className="pt-safe bg-white/95 dark:bg-gray-800/95 shadow-md border-b border-gray-100 dark:border-gray-700 sticky top-0 z-40 backdrop-blur-sm transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center space-x-2.5 sm:space-x-3">
+              <div className="flex-shrink-0 bg-gradient-to-br from-primary-600 to-primary-700 p-1.5 sm:p-2 rounded-lg shadow-lg transform md:hover:scale-105 transition-transform duration-200">
+                <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">EUNOCURA</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Healthcare Management System</p>
+              <div className="min-w-0">
+                <h1 className="truncate text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">EUNOCURA</h1>
+                <p className="hidden sm:block text-sm text-gray-600 dark:text-gray-400">Healthcare Management System</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-shrink-0 items-center space-x-2 sm:space-x-3">
               {isAuthenticated() ? (
                 <>
-                  <div className="text-right mr-2">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.full_name}</p>
+                  <div className="hidden sm:block text-right mr-2 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user?.full_name}</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">{user?.role}</p>
                   </div>
                   <button
@@ -35,7 +36,7 @@ const HomePage = () => {
                       logout();
                       navigate('/');
                     }}
-                    className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-5 rounded-lg transition-all duration-200 text-sm border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:shadow-md"
+                    className="tap flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 sm:px-5 rounded-lg transition-all duration-200 text-sm border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:shadow-md"
                   >
                     Logout
                   </button>
@@ -44,7 +45,7 @@ const HomePage = () => {
                 <>
                   <button
                     onClick={() => navigate('/login')}
-                    className="flex items-center space-x-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium py-2 px-5 rounded-lg transition-all duration-200 text-sm shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    className="tap flex items-center justify-center space-x-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 text-sm shadow-md hover:shadow-lg transform md:hover:-translate-y-0.5"
                   >
                     <LogIn className="w-4 h-4" />
                     <span>Login</span>
@@ -57,13 +58,14 @@ const HomePage = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-gray-900 dark:text-white mb-4">
+      {/* Hero Section — the phone budget is fixed: smaller type, tighter
+          rhythm, so the primary Login action sits well above a 640px fold. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-16">
+        <div className="text-center mb-8 sm:mb-12 md:mb-16">
+          <h2 className="text-balance text-3xl sm:text-4xl md:text-5xl font-bold leading-tight text-gray-900 dark:text-white">
             Welcome to EUNOCURA
           </h2>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+          <p className="mt-3 sm:mt-4 text-base sm:text-lg md:text-xl leading-relaxed text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
             An AI-powered healthcare platform connecting doctors and patients for better diagnosis,
             treatment, and care management.
           </p>
@@ -71,25 +73,25 @@ const HomePage = () => {
 
         {/* Auth Section - Show if not authenticated */}
         {!isAuthenticated() && (
-          <div className="text-center mb-12">
-            <div className="inline-flex flex-wrap justify-center gap-4">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
+            <div className="grid grid-cols-1 gap-3 w-full max-w-sm mx-auto sm:flex sm:flex-wrap sm:justify-center sm:gap-4 sm:max-w-none">
               <button
                 onClick={() => navigate('/login')}
-                className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                className="tap flex min-h-[48px] w-full sm:w-auto items-center justify-center space-x-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform md:hover:-translate-y-1"
               >
                 <LogIn className="w-5 h-5" />
                 <span>Login</span>
               </button>
               <button
                 onClick={() => navigate('/signup/doctor')}
-                className="bg-gradient-to-r from-primary-600 to-blue-600 hover:from-primary-700 hover:to-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-primary-400"
+                className="tap flex min-h-[48px] w-full sm:w-auto items-center justify-center space-x-2 bg-gradient-to-r from-primary-600 to-blue-600 hover:from-primary-700 hover:to-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform md:hover:-translate-y-1 border-2 border-primary-400"
               >
                 <UserPlus className="w-5 h-5" />
                 <span>Doctor Signup</span>
               </button>
               <button
                 onClick={() => navigate('/signup/patient')}
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-400"
+                className="tap flex min-h-[48px] w-full sm:w-auto items-center justify-center space-x-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform md:hover:-translate-y-1 border-2 border-green-400"
               >
                 <UserPlus className="w-5 h-5" />
                 <span>Patient Signup</span>
@@ -98,8 +100,8 @@ const HomePage = () => {
           </div>
         )}
 
-        {/* Portal Cards */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        {/* Portal Cards — one column on the phone, two from md. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 max-w-5xl mx-auto">
           {/* Doctor Portal Card */}
           <div
             onClick={() => {
@@ -111,31 +113,31 @@ const HomePage = () => {
                 navigate('/login');
               }
             }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-gray-100 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-2xl transition-all duration-300 cursor-pointer group transform hover:-translate-y-2"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-6 border-2 border-gray-100 dark:border-gray-700 hover:border-primary-400 dark:hover:border-primary-500 hover:shadow-2xl transition-all duration-300 cursor-pointer group transform md:hover:-translate-y-2"
           >
             <div className="text-center">
-              <div className="bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:from-primary-200 group-hover:to-primary-300 dark:group-hover:from-primary-800 dark:group-hover:to-primary-700 transition-all duration-300 shadow-md group-hover:shadow-lg">
-                <Stethoscope className="w-10 h-10 text-primary-600 dark:text-primary-300 group-hover:scale-110 transition-transform duration-300" />
+              <div className="bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:from-primary-200 group-hover:to-primary-300 dark:group-hover:from-primary-800 dark:group-hover:to-primary-700 transition-all duration-300 shadow-md group-hover:shadow-lg">
+                <Stethoscope className="w-8 h-8 sm:w-10 sm:h-10 text-primary-600 dark:text-primary-300 md:group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Doctor Portal</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Doctor Portal</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4 sm:mb-6">
                 Record consultations, generate reports, analyze test results, and get AI-powered diagnostic insights.
               </p>
-              <div className="space-y-2 text-left bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700 dark:to-blue-900/20 p-4 rounded-lg border border-gray-100 dark:border-gray-600 group-hover:border-primary-200 dark:group-hover:border-primary-700 transition-all">
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-primary-600 dark:text-primary-400" />
+              <div className="space-y-2 text-left bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-700 dark:to-blue-900/20 p-3.5 sm:p-4 rounded-lg border border-gray-100 dark:border-gray-600 group-hover:border-primary-200 dark:group-hover:border-primary-700 transition-all">
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-primary-600 dark:text-primary-400" />
                   <span>Audio transcription & clinical reports</span>
                 </div>
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-primary-600 dark:text-primary-400" />
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-primary-600 dark:text-primary-400" />
                   <span>Test result trends & visualization</span>
                 </div>
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-primary-600 dark:text-primary-400" />
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-primary-600 dark:text-primary-400" />
                   <span>AI diagnostic insights</span>
                 </div>
               </div>
-              <button className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 w-full mt-6 shadow-md group-hover:shadow-lg">
+              <button className="tap flex min-h-[48px] w-full items-center justify-center bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 mt-5 sm:mt-6 shadow-md group-hover:shadow-lg">
                 {isAuthenticated() && user?.role === 'doctor' ? 'Enter Doctor Portal' : 'Login as Doctor'}
               </button>
             </div>
@@ -152,63 +154,63 @@ const HomePage = () => {
                 navigate('/login');
               }
             }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-gray-100 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-2xl transition-all duration-300 cursor-pointer group transform hover:-translate-y-2"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-6 border-2 border-gray-100 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-2xl transition-all duration-300 cursor-pointer group transform md:hover:-translate-y-2"
           >
             <div className="text-center">
-              <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:from-green-200 group-hover:to-green-300 dark:group-hover:from-green-800 dark:group-hover:to-green-700 transition-all duration-300 shadow-md group-hover:shadow-lg">
-                <Users className="w-10 h-10 text-green-600 dark:text-green-300 group-hover:scale-110 transition-transform duration-300" />
+              <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:from-green-200 group-hover:to-green-300 dark:group-hover:from-green-800 dark:group-hover:to-green-700 transition-all duration-300 shadow-md group-hover:shadow-lg">
+                <Users className="w-8 h-8 sm:w-10 sm:h-10 text-green-600 dark:text-green-300 md:group-hover:scale-110 transition-transform duration-300" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">Patient Portal</h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">Patient Portal</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4 sm:mb-6">
                 View medications, get diet recommendations, chat with AI assistant, and manage appointments.
               </p>
-              <div className="space-y-2 text-left bg-gradient-to-br from-gray-50 to-green-50 dark:from-gray-700 dark:to-green-900/20 p-4 rounded-lg border border-gray-100 dark:border-gray-600 group-hover:border-green-200 dark:group-hover:border-green-700 transition-all">
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
+              <div className="space-y-2 text-left bg-gradient-to-br from-gray-50 to-green-50 dark:from-gray-700 dark:to-green-900/20 p-3.5 sm:p-4 rounded-lg border border-gray-100 dark:border-gray-600 group-hover:border-green-200 dark:group-hover:border-green-700 transition-all">
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400" />
                   <span>Medication schedules & reminders</span>
                 </div>
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400" />
                   <span>AI chatbot for quick queries</span>
                 </div>
-                <div className="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                  <Activity className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
+                <div className="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                  <Activity className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-green-600 dark:text-green-400" />
                   <span>Diet plans & health notifications</span>
                 </div>
               </div>
-              <button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 w-full mt-6 shadow-md group-hover:shadow-lg">
+              <button className="tap flex min-h-[48px] w-full items-center justify-center bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 mt-5 sm:mt-6 shadow-md group-hover:shadow-lg">
                 {isAuthenticated() && user?.role === 'patient' ? 'Enter Patient Portal' : 'Login as Patient'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Features Section */}
-        <div className="mt-20 text-center">
-          <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-12">Key Features</h3>
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+        {/* Features Section — stacked on the phone, four across from md. */}
+        <div className="mt-12 sm:mt-16 md:mt-20 text-center">
+          <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6 sm:mb-10 md:mb-12">Key Features</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
               <div className="bg-blue-100 dark:bg-blue-900 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Activity className="w-6 h-6 text-blue-600 dark:text-blue-300" />
               </div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Audio Transcription</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300">Convert doctor-patient conversations to text automatically</p>
             </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
               <div className="bg-purple-100 dark:bg-purple-900 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Activity className="w-6 h-6 text-purple-600 dark:text-purple-300" />
               </div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">AI Insights</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300">Get diagnostic recommendations based on patient data</p>
             </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
               <div className="bg-green-100 dark:bg-green-900 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Activity className="w-6 h-6 text-green-600 dark:text-green-300" />
               </div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Test Trends</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300">Visualize patient test results over time with charts</p>
             </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+            <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 transition-colors duration-200">
               <div className="bg-orange-100 dark:bg-orange-900 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Activity className="w-6 h-6 text-orange-600 dark:text-orange-300" />
               </div>
@@ -219,10 +221,10 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-20 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <p className="text-center text-gray-600 dark:text-gray-400">
+      {/* Footer — keeps clear of the Android gesture bar. */}
+      <footer className="pb-safe bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-12 sm:mt-16 md:mt-20 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <p className="text-center text-sm sm:text-base text-gray-600 dark:text-gray-400">
             © 2025 EUNOCURA. A prototype for healthcare innovation.
           </p>
         </div>
@@ -232,4 +234,3 @@ const HomePage = () => {
 };
 
 export default HomePage;
-

@@ -67,9 +67,9 @@ const DiagnosisDashboard = ({ data, text }: { data: any, text: string }) => {
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="min-h-screen bg-background/50 p-6 md:p-8"
+            className="min-h-0 md:min-h-screen bg-background/50 p-4 md:p-8"
         >
-            <div ref={dashboardContentRef} className="max-w-7xl mx-auto space-y-8">
+            <div ref={dashboardContentRef} className="max-w-7xl mx-auto space-y-6 md:space-y-8">
                 <DashboardHeader
                     patientName={patient?.name || "Patient"}
                     lastUpdated={patient?.last_updated ? new Date(patient.last_updated).toLocaleString() : new Date().toLocaleString()}
@@ -78,23 +78,26 @@ const DiagnosisDashboard = ({ data, text }: { data: any, text: string }) => {
 
                 {/* Primary Diagnosis & AI Analysis */}
                 <motion.section variants={sectionVariants}>
-                    <div className="flex items-center justify-between mb-4">
+                    {/* The label is long enough to squeeze the section title at
+                        360px, so the row wraps and the button becomes a
+                        full-width 44px target on a phone. */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-4">
                         <SectionHeader icon={LayoutDashboard} title="Primary Diagnosis" />
 
                         {clinical_reasoning && (
                             <button
                                 onClick={() => setIsReasoningModalOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-semibold transition-colors border border-indigo-200"
+                                className="tap flex w-full items-center justify-center gap-2 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-semibold transition-colors border border-indigo-200 sm:w-auto md:min-h-0 md:py-2"
                             >
-                                <Network className="w-4 h-4" />
-                                View Clinical Reasoning Graph
+                                <Network className="w-4 h-4 shrink-0" aria-hidden="true" />
+                                <span className="min-w-0 break-words">View Clinical Reasoning Graph</span>
                             </button>
                         )}
                     </div>
 
                     {text && text.length > 0 && (
                         <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-gray-800 font-normal shadow-sm">
-                            <div className="prose prose-indigo max-w-none prose-headings:font-bold prose-headings:text-indigo-900 prose-p:leading-relaxed prose-strong:text-indigo-800 prose-ul:list-disc prose-ul:pl-4">
+                            <div className="prose prose-indigo max-w-none min-w-0 break-words prose-headings:font-bold prose-headings:text-indigo-900 prose-p:leading-relaxed prose-strong:text-indigo-800 prose-ul:list-disc prose-ul:pl-4">
                                 <ReactMarkdown>
                                     {text}
                                 </ReactMarkdown>
@@ -157,15 +160,15 @@ const DiagnosisDashboard = ({ data, text }: { data: any, text: string }) => {
 
 function SectionHeader({ icon: Icon, title }: { icon: any, title: string }) {
     return (
-        <h2 className="text-sm font-bold text-muted-foreground mb-4 flex items-center gap-2 uppercase tracking-wider pl-1">
-            <Icon className="w-4 h-4" /> {title}
+        <h2 className="min-w-0 text-sm font-bold text-muted-foreground mb-4 flex items-center gap-2 uppercase tracking-wider pl-1 break-words">
+            <Icon className="w-4 h-4 shrink-0" aria-hidden="true" /> {title}
         </h2>
     );
 }
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="bg-muted/30 border border-dashed border-border rounded-xl p-8 text-center text-muted-foreground">
+        <div className="bg-muted/30 border border-dashed border-border rounded-xl p-6 md:p-8 text-center text-muted-foreground break-words">
             {message}
         </div>
     );

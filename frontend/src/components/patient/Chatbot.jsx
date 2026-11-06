@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Mic, MicOff, Keyboard, Volume2, Globe, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import { getApiBaseUrl } from '../../utils/api';
 
 const SUPPORTED_LANGUAGES = {
     'hi-IN': 'Hindi (हिंदी)',
@@ -17,6 +18,9 @@ const SUPPORTED_LANGUAGES = {
     'en-IN': 'English'
 };
 
+// Auto-grow cap for the composer, in px (~5 lines at 16px/1.6).
+const COMPOSER_MAX_HEIGHT = 120;
+
 const Chatbot = () => {
     const [messages, setMessages] = useState([
         {
@@ -26,8 +30,6 @@ const Chatbot = () => {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
     ]);
-    const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8081';
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
@@ -40,11 +42,60 @@ const Chatbot = () => {
     const audioChunksRef = useRef([]);
     const messagesEndRef = useRef(null);
     const currentAudioRef = useRef(null);
+    const messageListRef = useRef(null);
+    const composerRef = useRef(null);
+
+    /**
+     * Scroll the transcript, never the page.
+     *
+     * `scrollIntoView` also drags the document, which on a phone leaves the whole
+     * chat shifted under the header once the keyboard closes. Scrolling the list
+     * container directly keeps the page still and still works for the
+     * bottom-anchor fallback.
+     */
+    const scrollToBottom = (behavior = 'smooth') => {
+        const list = messageListRef.current;
+        if (!list) {
+            messagesEndRef.current?.scrollIntoView({ behavior });
+            return;
+        }
+        if (behavior === 'auto') list.scrollTop = list.scrollHeight;
+        else list.scrollTo({ top: list.scrollHeight, behavior });
+    };
 
     // Auto-scroll to bottom when messages change
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        scrollToBottom();
     }, [messages, isTyping, isProcessingAudio]);
+
+    // The keyboard opening resizes the viewport (Capacitor runs the webview in
+    // native resize mode), which can leave the newest message under the
+    // composer. Re-pin after the resize settles, on either viewport.
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const viewport = window.visualViewport;
+        let frame = 0;
+        const repin = () => {
+            window.cancelAnimationFrame(frame);
+            frame = window.requestAnimationFrame(() => scrollToBottom('auto'));
+        };
+        window.addEventListener('resize', repin);
+        if (viewport) viewport.addEventListener('resize', repin);
+        return () => {
+            window.cancelAnimationFrame(frame);
+            window.removeEventListener('resize', repin);
+            if (viewport) viewport.removeEventListener('resize', repin);
+        };
+    }, []);
+
+    // Composer auto-grow: one line at rest, capped so a pasted paragraph cannot
+    // eat the transcript. The cap matches `max-h-[7.5rem]` in the class list.
+    useEffect(() => {
+        const field = composerRef.current;
+        if (!field) return;
+        field.style.height = 'auto';
+        field.style.height = `${Math.min(field.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+    }, [input, inputMode]);
 
     // Cleanup audio on unmount
     useEffect(() => {
@@ -60,10 +111,6 @@ const Chatbot = () => {
     useEffect(() => {
         console.log('🔍 DEBUG: selectedLanguage state updated to:', selectedLanguage);
     }, [selectedLanguage]);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
 
     const handleSend = async () => {
         if (!input.trim()) return;
@@ -81,7 +128,7 @@ const Chatbot = () => {
 
         try {
             // Call backend API for text chat
-            const response = await fetch('http://localhost:8000/chatbot/text', {
+            const response = await fetch(`${getApiBaseUrl()}/chatbot/text`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -179,7 +226,7 @@ const Chatbot = () => {
             console.log('  - source_language:', selectedLanguage);
             console.log('  - target_language:', selectedLanguage);
 
-            const response = await fetch('http://localhost:8000/chatbot/voice', {
+            const response = await fetch(`${getApiBaseUrl()}/chatbot/voice`, {
                 method: 'POST',
                 body: formData
             });
@@ -268,7 +315,7 @@ const Chatbot = () => {
             }
 
             // Use backend endpoint for TTS
-            const response = await fetch('http://localhost:8000/chatbot/speak', {
+            const response = await fetch(`${getApiBaseUrl()}/chatbot/speak`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -315,53 +362,65 @@ const Chatbot = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
+        // `h-chat` is dvh-based, so the keyboard shrinking the webview shrinks the
+        // chat instead of hiding the composer. `min-h-0` overrides the utility's
+        // 22rem floor: with a keyboard open on a short phone that floor is taller
+        // than the viewport, which is exactly what pushes the composer off-screen.
+        <div className="max-w-4xl mx-auto flex h-chat min-h-0 flex-col md:block md:p-6 lg:p-8">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-8 text-center"
+                className="mb-3 md:mb-8 text-center flex-shrink-0"
             >
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3 tracking-tight">
+                <h2 className="text-xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-1 md:mb-3 tracking-tight">
                     Health Assistant
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto text-lg leading-relaxed">
+                <p className="hidden sm:block text-gray-600 dark:text-gray-400 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
                     Your multilingual AI companion for medication queries, diet plans, and health advice.
                 </p>
             </motion.div>
 
-            <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start h-[calc(100vh-250px)] min-h-[600px]">
+            {/* A chat has to own its scroller: the message list scrolls, the
+                composer stays put. `min-h-0` is what lets flex-1 shrink below
+                its content instead of pushing the composer off the screen, and
+                `items-stretch` is what gives the card a definite height on a
+                phone (the desktop sidebar still starts at the top). */}
+            <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-stretch lg:items-start flex-1 min-h-0 lg:h-[calc(100dvh-250px)] lg:min-h-[600px] mb-0 md:mb-0">
                 {/* Main Chat Interface */}
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700 relative"
+                    className="flex flex-col h-full min-h-0 bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700 relative"
                 >
                     {/* Header */}
-                    <div className="absolute top-0 left-0 right-0 z-10 px-6 py-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <div className="flex items-center space-x-3">
-                            <div className="relative">
+                    <div className="absolute top-0 left-0 right-0 z-10 px-3 sm:px-6 py-2.5 sm:py-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-700 flex justify-between items-center gap-2">
+                        <div className="flex items-center space-x-3 min-w-0">
+                            <div className="relative flex-shrink-0">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center shadow-lg">
                                     <Bot className="w-6 h-6 text-white" />
                                 </div>
                                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-gray-900 dark:text-white leading-tight">Assistant</h3>
-                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1">
-                                    <Globe className="w-3 h-3" /> {SUPPORTED_LANGUAGES[selectedLanguage]}
+                            <div className="min-w-0">
+                                <h3 className="font-bold text-gray-900 dark:text-white leading-tight truncate">Assistant</h3>
+                                {/* One line, so the absolute header keeps the
+                                    reserved offset the transcript is padded by. */}
+                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 min-w-0">
+                                    <Globe className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">{SUPPORTED_LANGUAGES[selectedLanguage]}</span>
                                 </p>
                             </div>
                         </div>
 
                         {/* Language Selector in Header */}
-                        <div className="relative group">
+                        <div className="relative group flex-shrink-0">
                             <select
                                 value={selectedLanguage}
                                 onChange={(e) => {
                                     console.log('🔍 DEBUG: Language changed from', selectedLanguage, 'to', e.target.value);
                                     setSelectedLanguage(e.target.value);
                                 }}
-                                className="appearance-none bg-gray-50 dark:bg-gray-700 border-0 text-gray-700 dark:text-gray-200 text-sm rounded-full py-2 pl-4 pr-8 focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                className="appearance-none bg-gray-50 dark:bg-gray-700 border-0 text-gray-700 dark:text-gray-200 text-base md:text-sm rounded-full py-2.5 pl-3 pr-8 sm:pl-4 focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors tap md:min-h-[40px] max-w-[7.5rem] sm:max-w-[8.5rem]"
                             >
                                 {Object.entries(SUPPORTED_LANGUAGES).map(([code, name]) => (
                                     <option key={code} value={code}>{name}</option>
@@ -372,7 +431,10 @@ const Chatbot = () => {
                     </div>
 
                     {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-24 pb-6 space-y-6 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                    <div
+                        ref={messageListRef}
+                        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 pt-[72px] sm:pt-24 pb-6 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent"
+                    >
                         <AnimatePresence initial={false}>
                             {messages.map((message, index) => (
                                 <motion.div
@@ -380,7 +442,7 @@ const Chatbot = () => {
                                     initial={{ opacity: 0, y: 20, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     transition={{ duration: 0.3, ease: "easeOut" }}
-                                    className={`flex items-end space-x-2 ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
+                                    className={`flex items-end space-x-2 min-w-0 ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}
                                 >
                                     {message.type === 'bot' && (
                                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-1">
@@ -388,32 +450,36 @@ const Chatbot = () => {
                                         </div>
                                     )}
 
-                                    <div className={`relative max-w-[85%] sm:max-w-[75%] group`}>
+                                    {/* 85% on a phone leaves the avatar and the
+                                        opposite edge visible; `min-w-0` is what
+                                        lets a long word actually wrap instead of
+                                        pushing the bubble past the card. */}
+                                    <div className={`relative max-w-[85%] min-w-0 sm:max-w-[75%] group`}>
                                         <div
-                                            className={`px-5 py-3.5 shadow-sm text-[15px] leading-relaxed ${message.type === 'bot'
+                                            className={`px-4 py-3 sm:px-5 sm:py-3.5 shadow-sm text-[15px] leading-relaxed break-words [overflow-wrap:anywhere] ${message.type === 'bot'
                                                 ? 'bg-gray-100 dark:bg-gray-700/80 text-gray-800 dark:text-gray-100 rounded-2xl rounded-tl-none'
                                                 : 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl rounded-tr-none'
                                                 }`}
                                         >
                                             {message.type === 'bot' ? (
-                                                <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                                                <div className="prose prose-sm dark:prose-invert max-w-none break-words [&_a]:break-words [&_code]:break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
                                                     <ReactMarkdown>{message.text}</ReactMarkdown>
                                                 </div>
                                             ) : (
-                                                <p className="whitespace-pre-wrap">{message.text}</p>
+                                                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.text}</p>
                                             )}
                                         </div>
 
                                         {/* Metadata & Actions */}
-                                        <div className={`flex items-center gap-2 mt-1.5 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                            <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">
+                                        <div className={`flex flex-wrap items-center gap-2 mt-1.5 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">
                                                 {message.time}
                                             </span>
 
                                             {message.type === 'bot' && message.language && (
                                                 <button
                                                     onClick={() => speakText(message.text, message.language, index)}
-                                                    className={`p-1 rounded-full transition-all duration-200 ${speakingMessageIndex === index
+                                                    className={`tap flex items-center justify-center rounded-full transition-all duration-200 ${speakingMessageIndex === index
                                                         ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 animate-pulse'
                                                         : 'text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                                         }`}
@@ -465,12 +531,17 @@ const Chatbot = () => {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input Area */}
-                    <div className="border-t border-gray-100 dark:border-gray-700 p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
-                        <div className="relative flex items-center gap-2">
+                    {/* Input Area — pinned. The wrapper adds the safe-area inset
+                        on top of the composer's own padding (a no-op on a
+                        desktop, where `env()` is 0). */}
+                    <div className="border-t border-gray-100 dark:border-gray-700 p-3 sm:p-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm flex-shrink-0">
+                        <div
+                            className="relative flex items-end md:items-center gap-2"
+                            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                        >
                             <button
                                 onClick={toggleInputMode}
-                                className={`p-2.5 rounded-xl transition-all duration-200 ${inputMode === 'mic'
+                                className={`tap flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 ${inputMode === 'mic'
                                     ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-500/20'
                                     : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300'
                                     }`}
@@ -480,25 +551,49 @@ const Chatbot = () => {
                             </button>
 
                             {inputMode === 'text' ? (
-                                <div className="flex-1 relative">
-                                    <input
-                                        type="text"
+                                <div className="flex-1 min-w-0 relative">
+                                    {/* A textarea, not an input: it grows with the
+                                        question instead of hiding the start of it.
+                                        16px keeps the OS from zooming on focus. */}
+                                    <textarea
+                                        ref={composerRef}
+                                        rows={1}
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                                        placeholder={`Type your question...`}
-                                        className="w-full bg-gray-100 dark:bg-gray-700/50 border-0 rounded-xl px-4 py-3 pr-12 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all shadow-inner"
+                                        onKeyDown={(e) => {
+                                            if (e.key !== 'Enter' || e.shiftKey) return;
+                                            // Never send in the middle of an IME composition
+                                            // (Hindi/Tamil keyboards compose with Enter).
+                                            if (e.nativeEvent && e.nativeEvent.isComposing) return;
+                                            e.preventDefault();
+                                            handleSend();
+                                        }}
+                                        onFocus={() => {
+                                            // The keyboard is still sliding in when focus
+                                            // lands; re-pin once it has settled.
+                                            window.setTimeout(() => scrollToBottom('auto'), 320);
+                                        }}
+                                        placeholder="Type your question..."
+                                        enterKeyHint="send"
+                                        autoComplete="off"
+                                        className="block w-full bg-gray-100 dark:bg-gray-700/50 border-0 rounded-xl pl-4 pr-14 py-3 text-base leading-relaxed text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 transition-all shadow-inner resize-none overflow-y-auto max-h-[7.5rem]"
                                     />
                                     <button
                                         onClick={handleSend}
                                         disabled={!input.trim() || isTyping}
-                                        className="absolute right-1.5 top-1.5 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm disabled:opacity-50 disabled:shadow-none transition-all duration-200"
+                                        className="absolute right-1 bottom-1 flex items-center justify-center w-11 h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-all duration-200 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none dark:disabled:bg-gray-600 dark:disabled:text-gray-400"
+                                        aria-label="Send message"
+                                        title={isTyping ? 'Waiting for the assistant' : 'Send message'}
                                     >
-                                        <Send className="w-4 h-4" />
+                                        {isTyping ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Send className="w-4 h-4" />
+                                        )}
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex-1 flex items-center justify-center py-1">
+                                <div className="flex-1 min-w-0 flex items-center justify-center py-1">
                                     <button
                                         onClick={handleVoiceButtonClick}
                                         disabled={isProcessingAudio}

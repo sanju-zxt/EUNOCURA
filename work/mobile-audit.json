@@ -1,0 +1,884 @@
+{
+  "viewport": "360x800",
+  "routes": [
+    {
+      "label": "public",
+      "name": "landing",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content EUNOCURA Login Welcome to EUNOCURA An AI-powered healthcare platform connecting doctors and patients for better diagnosis, treatment, and care management. Login Doctor Signup Patient Signup Doctor Portal Record consulta",
+      "nodeCount": 130,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "EUNOCURA"
+        },
+        {
+          "tag": "h2",
+          "text": "Welcome to EUNOCURA"
+        },
+        {
+          "tag": "h3",
+          "text": "Doctor Portal"
+        },
+        {
+          "tag": "h3",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h3",
+          "text": "Key Features"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "public",
+      "name": "login",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/login",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Welcome Back Sign in to your EUNOCURA account Email Address Password Sign In Don't have an account? Doctor Signup Patient Signup ← Back to Home About the demo accounts This build is seeded with two demo accounts — one p",
+      "nodeCount": 63,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Welcome Back"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/login",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "public",
+      "name": "signup-doctor",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/signup/doctor",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Doctor Registration Create your doctor account on EUNOCURA Email Address * Full Name * Phone Number * Gender * Select Gender Male Female Other License Number * Specialization * Years of Experience * Password * Confirm P",
+      "nodeCount": 96,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Doctor Registration"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/signup/doctor",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "public",
+      "name": "signup-patient",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/signup/patient",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Registration Create your patient account on EUNOCURA Email Address * Full Name * Phone Number * Gender * Select Gender Male Female Other Date of Birth * Blood Group * Select Blood Group A+ A- B+ B- AB+ AB- O+ O-",
+      "nodeCount": 97,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Registration"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/signup/patient",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "public",
+      "name": "404",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/this-route-does-not-exist",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content EUNOCURA Healthcare Management System Page not found That address does not match any screen in EUNOCURA. Check the link, or start again from one of the routes below. REQUESTED PATH /this-route-does-not-exist Home Login",
+      "nodeCount": 44,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Page not found"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/this-route-does-not-exist",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-home",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao Welcome back, Asha! Signed in as demo.patient@eunocura.dev Active Medications 2 prescriptions on file Next Appointment None booked Tap to book a visit Completed Visits 2 of 3 appointments on reco",
+      "nodeCount": 270,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Welcome back, Asha!"
+        },
+        {
+          "tag": "h3",
+          "text": "Medication reminder"
+        },
+        {
+          "tag": "h3",
+          "text": "Book New Appointment"
+        },
+        {
+          "tag": "h3",
+          "text": "View My Medications"
+        },
+        {
+          "tag": "h3",
+          "text": "Ask Health Questions"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-appointments",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/appointments",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao My Appointments Your consultations on record from your care team 3 Total Appointments 1 Upcoming 2 Completed All (3) Upcoming (1) Past (2) Upcoming Appointments (1) Demo Doctor Internal Medicine ",
+      "nodeCount": 289,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "My Appointments"
+        },
+        {
+          "tag": "h3",
+          "text": "Upcoming Appointments (1)"
+        },
+        {
+          "tag": "h3",
+          "text": "Demo Doctor"
+        },
+        {
+          "tag": "h3",
+          "text": "Past Appointments (2)"
+        },
+        {
+          "tag": "h3",
+          "text": "Hari"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient/appointments",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-book",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/book-appointment",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao Book Appointment Pick a doctor from your care team, then choose a date and time. Speciality All specialities CARDIOLOGY Internal Medicine Sort by Experience (most first) Name (A-Z) Showing 2 of 2",
+      "nodeCount": 205,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Book Appointment"
+        },
+        {
+          "tag": "h3",
+          "text": "Hari"
+        },
+        {
+          "tag": "h3",
+          "text": "Demo Doctor"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient/book-appointment",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-medications",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/medications",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao My Medications Prescriptions on file from your doctor Important Never skip or stop your medications without consulting your doctor. If you experience any side effects, contact your prescribing do",
+      "nodeCount": 524,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "My Medications"
+        },
+        {
+          "tag": "h3",
+          "text": "Important"
+        },
+        {
+          "tag": "h3",
+          "text": "Active Prescriptions (2)"
+        },
+        {
+          "tag": "h3",
+          "text": "Past Prescriptions (3)"
+        },
+        {
+          "tag": "h3",
+          "text": "Questions about a medication?"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient/medications",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-diet",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/diet",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao My Diet Plan Personalized nutrition recommendations for your heart health Your care plan Set by your clinician · updated Oct 25, 2026, 9:18 PM Meals by slot Early morning1 entry Warm water, no sa",
+      "nodeCount": 348,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "My Diet Plan"
+        },
+        {
+          "tag": "h3",
+          "text": "Your care plan"
+        },
+        {
+          "tag": "h3",
+          "text": "Meals by slot"
+        },
+        {
+          "tag": "h3",
+          "text": "Activity"
+        },
+        {
+          "tag": "h3",
+          "text": "Notes from your clinician"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient/diet",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-chat",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/chatbot",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao Health Assistant Assistant English Hindi (हिंदी) Tamil (தமிழ்) Telugu (తెలుగు) Bengali (বাংলা) Gujarati (ગુજરાતી) Kannada (ಕನ್ನಡ) Malayalam (മലയാളം) Marathi (मराठी) Odia (ଓଡ଼ିଆ) Punjabi (ਪੰਜਾਬੀ) ",
+      "nodeCount": 224,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Health Assistant"
+        },
+        {
+          "tag": "h3",
+          "text": "Assistant"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10px].uppercase.tracking-wide",
+          "size": 10
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 6,
+      "landedOn": "/patient/chatbot",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "patient",
+      "name": "patient-notifications",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/patient/notifications",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Patient Portal Asha Rao Notifications Stay updated with your health reminders and alerts 2 2 Unread Notifications 4 total notifications Mark All Read All (4) Unread (2) Appointments (1) Medication (1) Test Results (1) S",
+      "nodeCount": 273,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Patient Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Notifications"
+        },
+        {
+          "tag": "h3",
+          "text": "2 Unread Notifications"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight \"More\"",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 5,
+      "landedOn": "/patient/notifications",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "doctor",
+      "name": "doctor-home",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/doctor",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Doctor Portal Demo Doctor Welcome, Demo Doctor Today's Schedule - Monday, October 26, 2026 0 Total Appointments 0 In Progress 0 Upcoming 0 Completed 0 Cancelled No Appointments Today Your schedule is clear for today. Ho",
+      "nodeCount": 105,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Doctor Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Welcome, Demo Doctor"
+        },
+        {
+          "tag": "h3",
+          "text": "No Appointments Today"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 2,
+      "landedOn": "/doctor",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "doctor",
+      "name": "doctor-patients",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/doctor/patients",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Doctor Portal Demo Doctor SANJU P ID 6adb10ce3c5c5d3e6c739934 Age / Gender 0 years · Male Last visit Not recorded Asha Rao ID 6adb10d83c5c5d3e6c739935 Age / Gender 54 years · Female Last visit Not recorded Home Patients",
+      "nodeCount": 127,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Doctor Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "Patient Records"
+        },
+        {
+          "tag": "h3",
+          "text": "Search for a Patient"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        },
+        {
+          "el": "span.text-[10.5px].leading-tight.truncat",
+          "size": 10.5
+        }
+      ],
+      "tinyTextCount": 2,
+      "landedOn": "/doctor/patients",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "doctor",
+      "name": "doctor-session",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/doctor/session/6adb53a24f073273bef61b06-0",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Doctor Portal Demo Doctor Back to Dashboard ACTIVE SESSION SANJU P Chief Complaint: Hj 0 years • male • 09:00 AM 🆕 Baseline Visit Started: 09:00 AM 00:00 Session Duration Required Activities Recording Consultation audi",
+      "nodeCount": 787,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Doctor Portal"
+        },
+        {
+          "tag": "h2",
+          "text": "ACTIVE SESSION"
+        },
+        {
+          "tag": "h3",
+          "text": "SANJU P"
+        },
+        {
+          "tag": "h3",
+          "text": "Required Activities"
+        },
+        {
+          "tag": "h3",
+          "text": "Discussion Details"
+        },
+        {
+          "tag": "h3",
+          "text": "Reports"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [],
+      "tinyTextCount": 0,
+      "landedOn": "/doctor/session/6adb53a24f073273bef61b06-0",
+      "redirected": false,
+      "offline": false
+    },
+    {
+      "label": "doctor",
+      "name": "doctor-diagnosis",
+      "vw": 360,
+      "vh": 800,
+      "title": "EUNOCURA — Open-Weight Clinical Document Intelligence",
+      "hash": "#/doctor/session/6adb53a24f073273bef61b06-0/diagnosis",
+      "docOverflowX": 0,
+      "bodyText": "Skip to main content Diagnosis Dashboard Not Provided · updated Oct 23, 2026, 5:30 AM Export PDF Share Follow-up 📊 PRIMARY DIAGNOSIS Encounter for routine health supervision ICD-10: Z76.00 Stable 60% CONFIDENCE 📈 TEST TRENDS Blood Pressur",
+      "nodeCount": 1061,
+      "overflow": [],
+      "overflowCount": 0,
+      "smallTargets": [],
+      "smallTargetsCount": 0,
+      "smallFonts": [],
+      "clipped": [],
+      "clippedCount": 0,
+      "headings": [
+        {
+          "tag": "h1",
+          "text": "Diagnosis Dashboard"
+        },
+        {
+          "tag": "h2",
+          "text": "📊 PRIMARY DIAGNOSIS"
+        },
+        {
+          "tag": "h2",
+          "text": "Encounter for routine health supervision"
+        },
+        {
+          "tag": "h2",
+          "text": "📈 TEST TRENDS"
+        },
+        {
+          "tag": "h3",
+          "text": "Blood Pressure"
+        },
+        {
+          "tag": "h3",
+          "text": "Heart Rate"
+        }
+      ],
+      "tables": [],
+      "hscroll": [],
+      "hscrollCount": 0,
+      "tinyText": [
+        {
+          "el": "span.text-[11px].font-medium.text-muted-",
+          "size": 11
+        },
+        {
+          "el": "tspan \"Oct 23\"",
+          "size": 11
+        },
+        {
+          "el": "tspan \"mmHg\"",
+          "size": 11
+        },
+        {
+          "el": "tspan \"mmHg\"",
+          "size": 11
+        },
+        {
+          "el": "tspan \"mmHg\"",
+          "size": 11
+        }
+      ],
+      "tinyTextCount": 75,
+      "landedOn": "/doctor/session/6adb53a24f073273bef61b06-0/diagnosis",
+      "redirected": false,
+      "offline": false
+    }
+  ],
+  "consoleErrors": []
+}

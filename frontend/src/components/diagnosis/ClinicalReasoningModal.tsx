@@ -1,7 +1,6 @@
-import React, { Fragment } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Brain } from 'lucide-react';
+import React from 'react';
 import { ClinicalReasoningFlow } from './ClinicalReasoningFlow';
+import MobileSheet from '../mobile/MobileSheet';
 
 interface ClinicalReasoningModalProps {
     isOpen: boolean;
@@ -10,82 +9,52 @@ interface ClinicalReasoningModalProps {
     connections: any[];
 }
 
+/**
+ * The reasoning graph in a dialog. It is the frozen `MobileSheet`, so on a phone
+ * it is a bottom sheet with a drag handle and a capped height (the dashboard
+ * stays visible behind it), and from `md` up it is the wide centred dialog the
+ * desktop had. The sheet owns the focus trap, Escape, backdrop dismiss and the
+ * body scroll lock that this modal used to only partly have.
+ *
+ * `sm:max-w-6xl` keeps the desktop panel the width it was before the graph moved
+ * into the sheet; the body scrolls on its own, so the 500px graph never pushes
+ * the Close button off a short screen.
+ */
 export const ClinicalReasoningModal: React.FC<ClinicalReasoningModalProps> = ({
     isOpen,
     onClose,
     nodes,
     connections
 }) => {
+    const footer = (
+        <div className="flex justify-end">
+            <button
+                type="button"
+                onClick={onClose}
+                className="tap inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 sm:w-auto"
+            >
+                Close
+            </button>
+        </div>
+    );
+
     return (
-        <AnimatePresence>
-            {isOpen && (
-                <>
-                    {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
-                    />
-
-                    {/* Modal */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none"
-                    >
-                        <div
-                            className="bg-white dark:bg-slate-900 w-full max-w-6xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col pointer-events-auto border dark:border-slate-800"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-6 border-b dark:border-slate-800">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                                        <Brain className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                                            Clinical Reasoning Chain
-                                        </h2>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                                            Visualizing the AI's diagnostic thought process
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={onClose}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-                                >
-                                    <X className="w-6 h-6 text-slate-500" />
-                                </button>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 overflow-auto p-6 bg-slate-50/50 dark:bg-slate-900/50">
-                                <div className="min-h-[500px] h-full">
-                                    <ClinicalReasoningFlow
-                                        nodes={nodes}
-                                        connections={connections}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="p-4 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl flex justify-end">
-                                <button
-                                    onClick={onClose}
-                                    className="px-4 py-2 bg-white border border-slate-300 dark:bg-slate-800 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                    </motion.div>
-                </>
-            )}
-        </AnimatePresence>
+        <MobileSheet
+            open={isOpen}
+            onClose={onClose}
+            title="Clinical Reasoning Chain"
+            description="Visualizing the AI's diagnostic thought process"
+            size="xl"
+            className="sm:max-w-6xl"
+            closeLabel="Close clinical reasoning"
+            footer={footer}
+        >
+            <div className="min-w-0 md:min-h-[500px]">
+                <ClinicalReasoningFlow
+                    nodes={nodes}
+                    connections={connections}
+                />
+            </div>
+        </MobileSheet>
     );
 };

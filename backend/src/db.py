@@ -10,6 +10,7 @@ Two rules learned the hard way:
 """
 
 import os
+import re
 from datetime import datetime
 from typing import Any
 
@@ -50,6 +51,21 @@ except Exception as exc:  # noqa: BLE001 - never block import
           "Data routes will fail; /healthz will report degraded.")
 
 
+# Why the last probe failed, with any credentials stripped. A hosted deployment
+# that cannot reach Atlas must be able to say *why* on /healthz: "connection
+# refused" means the URI is stale, "SSL handshake" means the certificate, and
+# "timed out" means the IP access list. A bare `reachable: false` tells nobody
+# which of those to fix.
+LAST_ERROR: str | None = None
+_URI_IN_TEXT = re.compile(r"mongodb(\+srv)?://[^\s\"']+")
+
+
+def _clean_error(exc: Exception) -> str:
+    """A one-line reason safe to show on /healthz: no credentials, no URI."""
+    text = _URI_IN_TEXT.sub("mongodb://<redacted>", str(exc))
+    return " ".join(text.split())[:300]
+
+
 async def ping(timeout_ms: int = 1500) -> bool:
     """True when the server answers. Used by /healthz and preflight.
 
@@ -58,12 +74,15 @@ async def ping(timeout_ms: int = 1500) -> bool:
     worker) gets "attached to a different loop" and reports a perfectly healthy
     database as down. A short-lived probe keeps the answer true in every loop.
     """
+    global LAST_ERROR
     probe = None
     try:
         probe = AsyncMongoClient[Any](URI, **connection_kwargs)
         await probe.admin.command("ping", maxTimeMS=timeout_ms)
+        LAST_ERROR = None
         return True
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        LAST_ERROR = _clean_error(exc)
         return False
     finally:
         if probe is not None:

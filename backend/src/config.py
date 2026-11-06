@@ -1,10 +1,35 @@
 import os
+import tempfile as _tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pwdlib import PasswordHash
 
 load_dotenv()
+
+
+def _writable_dir(directory: Path) -> Path:
+    """Return a directory that can actually be written to at runtime.
+
+    A serverless host (Vercel) mounts the bundle read-only, so `data/uploads`
+    or `.cache/llm` cannot be created there. Crashing at import time would turn
+    every route into a 500, so fall back to the platform's temp directory and
+    keep serving: uploads and cached completions then live as long as the
+    instance does, which is enough for the PDF viewer and the demo replay.
+    `/healthz` reports which directory won.
+    """
+    candidates = (directory, Path(_tempfile.gettempdir()) / "eunocura" / directory.name)
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write-check"
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+            return candidate
+        except OSError:
+            continue
+    return directory
+
 
 PORT = os.getenv('PORT', '8000')
 MONGODB_URI = os.getenv('MONGODB_URI')
@@ -28,13 +53,15 @@ GEMINI_MODEL = os.getenv('GEMINI_MODEL', GEMMA_MODEL)
 
 # Every model call is cached on disk. The demo replays from cache when the
 # network (or the rate limit) gives up.
-LLM_CACHE_DIR = Path(os.getenv('LLM_CACHE_DIR', Path(__file__).resolve().parents[1] / '.cache' / 'llm'))
+LLM_CACHE_DIR = _writable_dir(
+    Path(os.getenv('LLM_CACHE_DIR', Path(__file__).resolve().parents[1] / '.cache' / 'llm'))
+)
 LLM_CACHE_ENABLED = os.getenv('LLM_CACHE_ENABLED', '1') not in ('0', 'false', 'False')
 
 # ---------------------------------------------------------------- data
 # Storage falls back to this directory when R2 credentials are absent.
 DATA_DIR = Path(os.getenv('DATA_DIR', Path(__file__).resolve().parents[1] / 'data'))
-UPLOAD_DIR = Path(os.getenv('UPLOAD_DIR', DATA_DIR / 'uploads'))
+UPLOAD_DIR = _writable_dir(Path(os.getenv('UPLOAD_DIR', DATA_DIR / 'uploads')))
 PUBLIC_BASE_URL = os.getenv('PUBLIC_BASE_URL', f'http://localhost:{PORT}')
 
 # ---------------------------------------------------------------- voice

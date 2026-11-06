@@ -72,23 +72,26 @@ const StatCard = ({ tone, label, value, caption, icon: Icon, to, loading = false
   const styles = TONES[tone];
 
   const body = (
-    <div className="flex items-center justify-between">
-      <div className="min-w-0">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 flex-1">
         <p className={`text-sm mb-1 font-medium ${styles.label}`}>{label}</p>
         {loading ? (
           <div className={`h-8 w-16 rounded animate-pulse ${styles.skeleton}`} />
         ) : (
-          <p className={`font-bold leading-tight ${valueClassName} ${styles.value}`}>{value}</p>
+          <p className={`font-bold leading-tight break-words ${valueClassName} ${styles.value}`}>{value}</p>
         )}
-        <p className={`text-xs mt-1 ${styles.caption}`}>{caption}</p>
+        <p className={`text-xs mt-1 ${styles.caption} break-words`}>{caption}</p>
       </div>
-      <div className={`bg-gradient-to-br ${styles.chip} p-3 rounded-xl shadow-lg flex-shrink-0`}>
-        <Icon className="w-6 h-6 text-white" />
+      <div className={`bg-gradient-to-br ${styles.chip} p-2.5 md:p-3 rounded-xl shadow-lg flex-shrink-0`}>
+        <Icon className="w-6 h-6 text-white" aria-hidden="true" />
       </div>
     </div>
   );
 
-  const classes = `card ${styles.card} hover:shadow-xl transition-all duration-200`;
+  // `min-w-0` keeps a long doctor name or date from widening the grid track past
+  // the viewport — a grid item defaults to `min-width: auto`. `p-4 md:p-6` trims
+  // the 24px card padding to 16px on a phone and leaves desktop untouched.
+  const classes = `card min-w-0 p-4 md:p-6 ${styles.card} hover:shadow-xl transition-all duration-200`;
 
   if (!to) {
     return <div className={classes}>{body}</div>;
@@ -282,18 +285,18 @@ const PatientDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Welcome Section */}
-      <div className="mb-8">
+      <div className="mb-5 md:mb-8">
         {authLoading ? (
           <>
-            <div className="h-9 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3" />
+            <div className="h-7 w-56 md:h-9 md:w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3" />
             <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </>
         ) : (
           <>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2 break-words">
               Welcome back{displayName ? `, ${displayName.split(' ')[0]}` : ''}!
             </h2>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 break-words">
               {user?.email ? (
                 <>
                   Signed in as{' '}
@@ -307,8 +310,9 @@ const PatientDashboard = () => {
         )}
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      {/* Quick Stats — one card per row on a phone (already a single column below
+          `md`), two up on a tablet, four across on a desktop. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-4 md:mb-6">
         <StatCard
           tone="blue"
           label="Active Medications"
@@ -352,20 +356,20 @@ const PatientDashboard = () => {
       </div>
 
       {appointmentsError && !appointmentsLoading && (
-        <div className="card mb-8 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+        <div className="card mb-4 md:mb-8 p-4 md:p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
+              <AlertCircle className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-sm text-gray-700 dark:text-gray-300 break-words">
                 Appointment details could not be loaded — {appointmentsError}
               </p>
             </div>
             <button
               type="button"
               onClick={loadAppointments}
-              className="btn-secondary text-sm inline-flex items-center justify-center flex-shrink-0"
+              className="tap md:min-h-0 md:min-w-0 btn-secondary text-sm inline-flex items-center justify-center flex-shrink-0 w-full sm:w-auto"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-4 h-4 mr-2" aria-hidden="true" />
               Retry
             </button>
           </div>
@@ -375,23 +379,24 @@ const PatientDashboard = () => {
       {/* Reminder derived from real data — hidden entirely when there is nothing to say */}
       {reminder && (
         <div
-          className={`card mb-8 border-2 hover:shadow-xl transition-all duration-200 ${
+          className={`card mb-4 md:mb-8 p-4 md:p-6 border-2 hover:shadow-xl transition-all duration-200 ${
             reminder.tone === 'urgent'
               ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
               : 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
           }`}
         >
-          <div className="flex items-start space-x-3">
+          <div className="flex items-start gap-3">
             <AlertCircle
               className={`w-6 h-6 flex-shrink-0 mt-1 ${
                 reminder.tone === 'urgent'
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`}
+              aria-hidden="true"
             />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h3
-                className={`text-lg font-bold mb-1 ${
+                className={`text-lg font-bold mb-1 break-words ${
                   reminder.tone === 'urgent'
                     ? 'text-red-900 dark:text-red-200'
                     : 'text-blue-900 dark:text-blue-200'
@@ -400,7 +405,7 @@ const PatientDashboard = () => {
                 {reminder.title}
               </h3>
               <p
-                className={`mb-3 ${
+                className={`mb-3 text-sm md:text-base break-words ${
                   reminder.tone === 'urgent'
                     ? 'text-red-800 dark:text-red-300'
                     : 'text-blue-800 dark:text-blue-300'
@@ -410,7 +415,7 @@ const PatientDashboard = () => {
               </p>
               <Link
                 to={reminder.to}
-                className={`font-semibold text-sm transition-colors ${
+                className={`tap md:min-h-0 md:min-w-0 inline-flex items-center font-semibold text-sm transition-colors ${
                   reminder.tone === 'urgent'
                     ? 'text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300'
                     : 'text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300'
@@ -423,89 +428,94 @@ const PatientDashboard = () => {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <Link to="/patient/book-appointment" className="card hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
-          <div className="flex items-start space-x-4">
-            <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
-              <CalendarPlus className="w-6 h-6 text-white" />
+      {/* Quick Actions — one card per row on a phone, two up from `md`. */}
+      <div className="grid md:grid-cols-2 gap-3 md:gap-6 mb-5 md:mb-8">
+        <Link to="/patient/book-appointment" className="card min-w-0 p-4 md:p-6 hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-2.5 md:p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow flex-shrink-0">
+              <CalendarPlus className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-1 break-words group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                 Book New Appointment
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Find and book appointments with doctors near you</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 break-words">Find and book appointments with doctors near you</p>
             </div>
           </div>
         </Link>
 
-        <Link to="/patient/medications" className="card hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
-          <div className="flex items-start space-x-4">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
-              <Pill className="w-6 h-6 text-white" />
+        <Link to="/patient/medications" className="card min-w-0 p-4 md:p-6 hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 md:p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow flex-shrink-0">
+              <Pill className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-1 break-words group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 View My Medications
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Check your medication schedule and instructions</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 break-words">Check your medication schedule and instructions</p>
             </div>
           </div>
         </Link>
 
-        <Link to="/patient/chatbot" className="card hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
-          <div className="flex items-start space-x-4">
-            <div className="bg-gradient-to-br from-green-500 to-green-600 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
-              <MessageCircle className="w-6 h-6 text-white" />
+        <Link to="/patient/chatbot" className="card min-w-0 p-4 md:p-6 hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="bg-gradient-to-br from-green-500 to-green-600 p-2.5 md:p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow flex-shrink-0">
+              <MessageCircle className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-1 break-words group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
                 Ask Health Questions
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Chat with our AI assistant for quick answers</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 break-words">Chat with our AI assistant for quick answers</p>
             </div>
           </div>
         </Link>
 
-        <Link to="/patient/diet" className="card hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
-          <div className="flex items-start space-x-4">
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
-              <Apple className="w-6 h-6 text-white" />
+        <Link to="/patient/diet" className="card min-w-0 p-4 md:p-6 hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-2.5 md:p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow flex-shrink-0">
+              <Apple className="w-6 h-6 text-white" aria-hidden="true" />
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-1 break-words group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
                 My Diet Plan
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">View your personalized nutrition recommendations</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 break-words">View your personalized nutrition recommendations</p>
             </div>
           </div>
         </Link>
 
-        <Link to="/patient/notifications" className="card hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
-          <div className="flex items-start space-x-4">
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow relative">
-              <Bell className="w-6 h-6 text-white" />
+        <Link to="/patient/notifications" className="card min-w-0 p-4 md:p-6 hover:shadow-xl transition-all duration-200 group transform hover:-translate-y-1">
+          <div className="flex items-start gap-3 md:gap-4">
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-2.5 md:p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow relative flex-shrink-0">
+              <Bell className="w-6 h-6 text-white" aria-hidden="true" />
               {unreadNotifications > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-lg">
                   {unreadNotifications}
                 </span>
               )}
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-1 break-words group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                 Notifications
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Stay updated with your health reminders</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 break-words">Stay updated with your health reminders</p>
             </div>
           </div>
         </Link>
       </div>
 
-      {/* Active Medications */}
-      <div className="card mb-8 hover:shadow-xl transition-all duration-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">Active Medications</h3>
-          <Link to="/patient/medications" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-semibold transition-colors">
+      {/* Active Medications — the drug name wraps rather than truncating, and the
+          status chip drops below it on a phone so a long name cannot push the row
+          wider than the screen. */}
+      <div className="card mb-5 md:mb-8 p-4 md:p-6 hover:shadow-xl transition-all duration-200">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white min-w-0 break-words">Active Medications</h3>
+          <Link
+            to="/patient/medications"
+            className="tap md:min-h-0 md:min-w-0 inline-flex items-center justify-end flex-shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-semibold transition-colors"
+          >
             View All →
           </Link>
         </div>
@@ -526,15 +536,15 @@ const PatientDashboard = () => {
 
           {!medsLoading && medsError && (
             <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 break-words">
                 Medication list unavailable — {medsError}
               </p>
               <button
                 type="button"
                 onClick={loadMedications}
-                className="btn-secondary text-sm inline-flex items-center"
+                className="tap md:min-h-0 md:min-w-0 btn-secondary text-sm inline-flex items-center justify-center w-full sm:w-auto"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
+                <RefreshCw className="w-4 h-4 mr-2" aria-hidden="true" />
                 Retry
               </button>
             </div>
@@ -549,19 +559,19 @@ const PatientDashboard = () => {
           )}
 
           {!medsLoading && !medsError && upcomingMedications.map((med) => (
-            <div key={med.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-              <div className="flex items-center space-x-3">
-                <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
-                  <Pill className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div key={med.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 md:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+              <div className="flex items-start gap-3 min-w-0 sm:items-center">
+                <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg flex-shrink-0">
+                  <Pill className="w-5 h-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">{med.medication} {med.dosage}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 dark:text-white break-words">{med.medication} {med.dosage}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
                     {med.frequency}{med.route ? ` · ${med.route}` : ''}
                   </p>
                 </div>
               </div>
-              <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-3 py-1 rounded-full font-semibold">
+              <span className="self-start sm:self-auto flex-shrink-0 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-3 py-1 rounded-full font-semibold">
                 Active
               </span>
             </div>
@@ -570,14 +580,14 @@ const PatientDashboard = () => {
       </div>
 
       {/* Health Tips */}
-      <div className="card bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-2 border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-200">
-        <div className="flex items-start space-x-3">
-          <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-xl shadow-md">
-            <Activity className="w-5 h-5 text-white" />
+      <div className="card p-4 md:p-6 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-2 border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-200">
+        <div className="flex items-start gap-3">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-xl shadow-md flex-shrink-0">
+            <Activity className="w-5 h-5 text-white" aria-hidden="true" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Today's Health Tip</h3>
-            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+            <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 leading-relaxed break-words">
               Remember to take a 30-minute walk after your evening meal. Regular physical activity helps
               manage blood pressure and improves heart health. Stay hydrated and avoid heavy meals before bedtime.
             </p>

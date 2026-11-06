@@ -1,0 +1,75 @@
+{
+  "viewport": "360x800",
+  "results": [
+    {
+      "name": "API base in use",
+      "ok": true,
+      "detail": "http://10.0.2.2:8000"
+    },
+    {
+      "name": "login form accepts input",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "login submits and lands in the portal",
+      "ok": true,
+      "detail": "#/patient"
+    },
+    {
+      "name": "bottom nav renders 4 primary tabs",
+      "ok": true,
+      "detail": "Home / Visits / Book / Meds"
+    },
+    {
+      "name": "every bottom tab navigates and keeps the tab bar",
+      "ok": true,
+      "detail": "all 4"
+    },
+    {
+      "name": "\"More\" opens a sheet",
+      "ok": true,
+      "detail": "{\"h\":800,\"w\":360,\"text\":\"More\\n\\nEvery screen in this portal.\\n\\nDashboard\\nMy Appointment\"}"
+    },
+    {
+      "name": "sheet destinations actually route",
+      "ok": true,
+      "detail": "/patient -> /patient"
+    },
+    {
+      "name": "dark-mode toggle flips the theme",
+      "ok": true,
+      "detail": "clicked=true false -> true"
+    },
+    {
+      "name": "chat composer sits inside the viewport",
+      "ok": true,
+      "detail": "mode=already-text bottom=716 of 800, font=16px"
+    },
+    {
+      "name": "chat message list is its own scroller",
+      "ok": true,
+      "detail": "{\"scroll\":524,\"content\":524}"
+    },
+    {
+      "name": "chat composer sends a message",
+      "ok": true,
+      "detail": "{\"sendTest\":{\"ok\":true},\"sendClicked\":{\"found\":true,\"disabled\":false},\"sendResult\":{\"cleared\":true,\"bubbles\":3}}"
+    },
+    {
+      "name": "API settings sheet opens from the header",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tab bar stays on screen when the keyboard shrinks the view",
+      "ok": true,
+      "detail": "{\"bottom\":496,\"vh\":496,\"visible\":true}"
+    },
+    {
+      "name": "no console errors during the run",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

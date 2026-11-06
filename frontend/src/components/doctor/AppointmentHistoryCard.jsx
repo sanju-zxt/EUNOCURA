@@ -13,6 +13,19 @@ import {
 import ChatModal from './ChatModal';
 import DiagnosisDashboard from '../diagnosis/Main';
 import { exportComponentAsPDF } from '../../utils/pdfExport';
+import { resolveAssetUrl } from '../../utils/api';
+
+/**
+ * One label/value pair in the card's phone layout: the label stays put and the
+ * value wraps. A date, a doctor and a chief complaint are clinical facts, so
+ * they get a full-width row instead of being squeezed into a column.
+ */
+const DetailRow = ({ label, value }) => (
+    <div className="flex items-start justify-between gap-3 border-b border-gray-100 dark:border-gray-700 py-1.5 last:border-b-0">
+        <dt className="flex-shrink-0 text-xs font-medium text-gray-600 dark:text-gray-400">{label}</dt>
+        <dd className="min-w-0 break-words text-right text-sm font-semibold text-gray-900 dark:text-white">{value}</dd>
+    </div>
+);
 
 const AppointmentHistoryCard = ({
     appointment,
@@ -70,41 +83,70 @@ const AppointmentHistoryCard = ({
         return badges[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
     };
 
+    const statusLabel = (appointment.status || 'completed').replace('_', ' ');
+
+    // Same two fields the card has always printed, phrased for a labelled row and
+    // without writing "undefined" into a clinical record.
+    const scheduleLabel = (() => {
+        const { scheduledDate, scheduledTime } = appointment;
+        if (scheduledDate && scheduledTime) return `${scheduledDate} at ${scheduledTime}`;
+        if (scheduledDate) return scheduledDate;
+        if (scheduledTime) return scheduledTime;
+        return 'Not recorded';
+    })();
+
     return (
         <>
             <div 
                 ref={cardRef}
-                className={`bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700 transition-all duration-200 ${isExpanded ? 'ring-2 ring-primary-500 dark:ring-primary-400 shadow-lg' : 'hover:shadow-lg'}`}
+                className={`bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 md:p-6 border border-gray-100 dark:border-gray-700 transition-all duration-200 ${isExpanded ? 'ring-2 ring-primary-500 dark:ring-primary-400 shadow-lg' : 'hover:shadow-lg'}`}
             >
                 {/* Appointment Header */}
-                <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                            <Calendar className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-2 mb-1 md:items-center">
+                            <Calendar className="w-5 h-5 mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400 md:mt-0" aria-hidden="true" />
+                            <h4 className="min-w-0 text-base md:text-lg font-bold text-gray-900 dark:text-white break-words">
                                 {appointmentNo == 0 ? "Baseline Visit" : `Follow Up Visit #${appointmentNo}`}
                             </h4>
                         </div>
-                        <p className="text-base font-semibold mb-1 text-gray-900 dark:text-white">Doctor: {appointment.doctor?.name || 'Unknown'}</p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-semibold">Chief Complaint:</span> {appointment.chiefComplaint}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1 italic">
+                        {/* Desktop: the three lines this card has always shown. */}
+                        <p className="hidden md:block text-base font-semibold mb-1 text-gray-900 dark:text-white">Doctor: {appointment.doctor?.name || 'Unknown'}</p>
+                        <p className="hidden md:block text-sm text-gray-700 dark:text-gray-300 mb-1"><span className="font-semibold">Chief Complaint:</span> {appointment.chiefComplaint}</p>
+                        <p className="hidden md:block text-sm text-gray-600 dark:text-gray-400 mb-1 italic">
                             "{appointment.scheduledDate} at {appointment.scheduledTime}"
                         </p>
+
+                        {/* Phone: stacked labelled rows, so the status no longer
+                            competes with the title for the 360px line. */}
+                        <dl className="mt-2 md:hidden">
+                            <DetailRow label="Doctor" value={appointment.doctor?.name || 'Unknown'} />
+                            <DetailRow label="Chief complaint" value={appointment.chiefComplaint || 'Not recorded'} />
+                            <DetailRow label="Scheduled" value={scheduleLabel} />
+                            <DetailRow
+                                label="Status"
+                                value={
+                                    <span className={`inline-block text-xs px-3 py-1 rounded-full font-semibold ${getStatusBadge(appointment.status || 'completed')}`}>
+                                        {statusLabel}
+                                    </span>
+                                }
+                            />
+                        </dl>
                     </div>
-                    <span className={`text-xs px-3 py-1 rounded-full font-semibold ${getStatusBadge(appointment.status || 'completed')}`}>
-                        {(appointment.status || 'completed').replace('_', ' ')}
+                    <span className={`hidden md:inline-flex flex-shrink-0 text-xs px-3 py-1 rounded-full font-semibold ${getStatusBadge(appointment.status || 'completed')}`}>
+                        {statusLabel}
                     </span>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
+                {/* Action Buttons — full-width stacked rows on a phone, one row from md. */}
+                <div className="flex flex-col gap-2 md:flex-row">
                     {/* Start/Resume Session Buttons for PatientsPage */}
                     {onStartSession && appointment.status === 'in_progress' && (currentUser?._id === appointment.doctor?.id || currentUser?.id === appointment.doctor?.id) && (
                         <button
                             onClick={() => onStartSession(appointment.id)}
-                            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
+                            className="min-h-[44px] w-full md:min-h-0 md:w-auto md:flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
                         >
-                            <Play className="w-4 h-4 mr-2" />
+                            <Play className="w-4 h-4 mr-2" aria-hidden="true" />
                             RESUME SESSION
                         </button>
                     )}
@@ -112,9 +154,9 @@ const AppointmentHistoryCard = ({
                     {onStartSession && appointment.status === 'scheduled' && (currentUser?._id === appointment.doctor?.id || currentUser?.id === appointment.doctor?.id) && (
                         <button
                             onClick={() => onStartSession(appointment.id)}
-                            className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
+                            className="min-h-[44px] w-full md:min-h-0 md:w-auto md:flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
                         >
-                            <Play className="w-4 h-4 mr-2" />
+                            <Play className="w-4 h-4 mr-2" aria-hidden="true" />
                             START SESSION
                         </button>
                     )}
@@ -124,25 +166,25 @@ const AppointmentHistoryCard = ({
                         <>
                             <button
                                 onClick={() => setIsExpanded(!isExpanded)}
-                                className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
+                                className="min-h-[44px] w-full md:min-h-0 md:w-auto md:flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg"
                             >
-                                <Eye className="w-4 h-4 mr-2" />
+                                <Eye className="w-4 h-4 mr-2" aria-hidden="true" />
                                 {isExpanded ? 'Hide Details' : 'View Details'}
                             </button>
 
                             <button
                                 onClick={() => setIsChatOpen(true)}
-                                className="flex-1 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center border border-indigo-200 dark:border-indigo-700 shadow-sm hover:shadow-md"
+                                className="min-h-[44px] w-full md:min-h-0 md:w-auto md:flex-1 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center border border-indigo-200 dark:border-indigo-700 shadow-sm hover:shadow-md"
                             >
-                                <MessageCircle className="w-4 h-4 mr-2" />
+                                <MessageCircle className="w-4 h-4 mr-2" aria-hidden="true" />
                                 View Chats
                             </button>
 
                             <button 
                                 onClick={handleExportPDF}
-                                className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center shadow-sm hover:shadow-md"
+                                className="min-h-[44px] w-full md:min-h-0 md:w-auto bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md"
                             >
-                                <Download className="w-4 h-4 mr-2" />
+                                <Download className="w-4 h-4 mr-2" aria-hidden="true" />
                                 Export
                             </button>
                         </>
@@ -152,7 +194,7 @@ const AppointmentHistoryCard = ({
                 {/* Expanded Details */}
                 {isExpanded && session && (
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <h5 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Session Details</h5>
+                        <h5 className="text-lg font-bold text-gray-900 dark:text-white mb-4 break-words">Session Details</h5>
 
                         {/* Discussion */}
                         {session.discussion && (
@@ -162,7 +204,7 @@ const AppointmentHistoryCard = ({
                                     Discussion
                                 </h6>
                                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-100 dark:border-gray-600 max-h-60 overflow-y-auto">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{session.discussion}</p>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed break-words">{session.discussion}</p>
                                 </div>
                             </div>
                         )}
@@ -176,19 +218,21 @@ const AppointmentHistoryCard = ({
                                 </h6>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {session.reports.map((report, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 rounded-lg p-3 shadow-sm transition-all group">
-                                            <div className="flex items-center space-x-3 overflow-hidden">
-                                                <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-green-500 dark:group-hover:text-green-400" />
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate" title={report.file_name}>{report.file_name}</span>
+                                        <div key={idx} className="flex items-center justify-between gap-2 md:gap-0 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 rounded-lg p-3 shadow-sm transition-all group">
+                                            {/* A report's filename is what a clinician scans for;
+                                                on a phone it wraps in full instead of ending in "…". */}
+                                            <div className="flex min-w-0 items-center space-x-3 md:overflow-hidden">
+                                                <FileText className="w-5 h-5 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-green-500 dark:group-hover:text-green-400" aria-hidden="true" />
+                                                <span className="min-w-0 text-sm font-medium text-gray-700 dark:text-gray-300 break-words md:truncate" title={report.file_name}>{report.file_name}</span>
                                             </div>
                                             <a
-                                                href={report.uri}
+                                                href={resolveAssetUrl(report.uri || report.file_url || report.pdf_url)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="ml-2 p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                                                className="ml-2 flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center p-1.5 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors md:min-h-0 md:min-w-0"
                                                 title="Open Report"
                                             >
-                                                <Eye className="w-4 h-4" />
+                                                <Eye className="w-4 h-4" aria-hidden="true" />
                                             </a>
                                         </div>
                                     ))}
@@ -205,19 +249,19 @@ const AppointmentHistoryCard = ({
                                 </h6>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {session.tests.map((test, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-500 rounded-lg p-3 shadow-sm transition-all group">
-                                            <div className="flex items-center space-x-3 overflow-hidden">
-                                                <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover:text-purple-500 dark:group-hover:text-purple-400" />
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate" title={test.doc_name}>{test.doc_name}</span>
+                                        <div key={idx} className="flex items-center justify-between gap-2 md:gap-0 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-purple-300 dark:hover:border-purple-500 rounded-lg p-3 shadow-sm transition-all group">
+                                            <div className="flex min-w-0 items-center space-x-3 md:overflow-hidden">
+                                                <FileText className="w-5 h-5 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-purple-500 dark:group-hover:text-purple-400" aria-hidden="true" />
+                                                <span className="min-w-0 text-sm font-medium text-gray-700 dark:text-gray-300 break-words md:truncate" title={test.doc_name}>{test.doc_name}</span>
                                             </div>
                                             <a
-                                                href={test.uri}
+                                                href={resolveAssetUrl(test.uri || test.file_url || test.pdf_url)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="ml-2 p-1.5 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                                                className="ml-2 flex min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center p-1.5 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors md:min-h-0 md:min-w-0"
                                                 title="Open Test Document"
                                             >
-                                                <Eye className="w-4 h-4" />
+                                                <Eye className="w-4 h-4" aria-hidden="true" />
                                             </a>
                                         </div>
                                     ))}
@@ -229,8 +273,8 @@ const AppointmentHistoryCard = ({
                         {(appointment.diagnosis_generated_at || session.generated_diagnosis) && (
                             <div className="mb-6 mt-8 border-2 border-indigo-100 dark:border-indigo-800 bg-white dark:bg-gray-800 rounded-lg p-4">
                                 <div className="mb-4 border-b border-gray-100 dark:border-gray-700 pb-4">
-                                    <h6 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                                        <Sparkles className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
+                                    <h6 className="text-lg font-bold text-gray-900 dark:text-white flex items-center break-words">
+                                        <Sparkles className="w-5 h-5 mr-2 flex-shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
                                         AI Diagnostic Analysis
                                     </h6>
                                     {appointment.diagnosis_generated_at && (
