@@ -47,7 +47,7 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started.
 | 05 | `index.html` meta + PWA manifest + icons | `index.html`, `public/manifest.webmanifest` | [x] |
 | 06 | Mobile design tokens: safe area, `h-app`, `.tap`, `.scroll-x`, sheet animation, reduced motion | `src/index.css` | [x] |
 | 07 | Mobile scripts (`mobile:sync`, `mobile:apk`) + version bump | `frontend/package.json` | [x] |
-| 08 | This spec + README §12 | `MOBILE-SPEC.md`, `README.md` | [ ] |
+| 08 | This spec + README §12 | `MOBILE-SPEC.md`, `README.md` | [x] |
 
 ### Session 1 — Shell, navigation, mobile primitives (orchestrator only)
 
@@ -121,15 +121,15 @@ Legend: `[x]` done · `[~]` in progress · `[ ]` not started.
 
 | # | Unit | State |
 |---|---|---|
-| 42 | `npm run build` + `cap sync` + `assembleRelease` green | [ ] |
-| 43 | Emulator install, login as both demo roles | [ ] |
-| 44 | Screenshot every patient screen, fix what breaks | [ ] |
-| 45 | Screenshot every doctor screen, fix what breaks | [ ] |
-| 46 | Screenshot auth + landing + 404 | [ ] |
-| 47 | `logcat` triage (no red JS errors, no mixed-content blocks) | [ ] |
-| 48 | Back-button + keyboard + offline banner behaviour on device | [ ] |
-| 49 | Backend regression: `ci_checks` 14/14 + route smoke + PHI probes | [ ] |
-| 50 | APK to `Downloads/EUNOCURA.apk` + honest report of what was not device-tested | [ ] |
+| 42 | `npm run build` + `cap sync` + `assembleRelease` green | [x] |
+| 43 | Emulator install, login as both demo roles | [x] |
+| 44 | Screenshot every patient screen, fix what breaks | [x] |
+| 45 | Screenshot every doctor screen, fix what breaks | [x] |
+| 46 | Screenshot auth + landing + 404 | [x] |
+| 47 | `logcat` triage (no red JS errors, no mixed-content blocks) | [x] |
+| 48 | Back-button + keyboard + offline banner behaviour on device | [~] not captured |
+| 49 | Backend regression: `ci_checks` 14/14 + route smoke + PHI probes | [x] |
+| 50 | APK to `Downloads/EUNOCURA.apk` + honest report of what was not device-tested | [x] |
 
 ## 3. File ownership (the rule that keeps 50 units from colliding)
 
