@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           # No `cache: npm` here: it needs a committed package-lock.json as its
