@@ -19,7 +19,7 @@
 # runs in text-only mode and says so on /healthz.
 
 # --- web
-fastapi[standard]==0.111.0
+fastapi[standard]==0.162.0
 uvicorn==0.30.0
 python-multipart==0.0.9
 
