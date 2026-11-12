@@ -47,12 +47,13 @@ const Login = () => {
           navigate('/', { replace: true });
         }
       } else {
-        // Provide more helpful error messages
-        if (result.error && result.error.includes('not a')) {
-          setError('Please use the correct login portal for your account type.');
-        } else {
-          setError(result.error || 'Login failed. Please try again.');
-        }
+        // Show what the backend actually said. This used to look for the
+        // substring "not a" and replace the message with "Please use the correct
+        // login portal for your account type." — but a 503 body of
+        // "The database is unreachable, so this route cannot answer." contains
+        // "not a" ("cannot answer"), so a dead database was reported as a role
+        // mistake. A wrong prompt sends the user hunting for the wrong problem.
+        setError(result.error || 'Login failed. Please try again.');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
