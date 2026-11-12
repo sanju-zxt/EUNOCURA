@@ -41,7 +41,12 @@ const DoctorDashboard = () => {
       // Format date as YYYY-MM-DD for the API
       const dateStr = new Date().toISOString().split('T')[0];
 
-      const response = await apiRequest(`/appointments?doctor_id=${user._id}&appointment_date=${dateStr}`);
+      // Trailing slash on purpose: the route is declared as `GET /appointments/`,
+      // so `/appointments?...` answers with a 307 redirect. Behind a proxy that
+      // terminates TLS the redirect's scheme can come back as `http://`, and the
+      // browser then blocks it as mixed content - the dashboard silently showed
+      // zero appointments. Asking for the canonical path skips the redirect.
+      const response = await apiRequest(`/appointments/?doctor_id=${user._id}&appointment_date=${dateStr}`);
 
       if (response.success) {
         // `Array.isArray` so a malformed payload can never reach `.filter`.
