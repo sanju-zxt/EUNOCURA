@@ -56,12 +56,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          # No `cache: npm` here: it needs a committed package-lock.json as its
+          # cache key, and frontend/.gitignore ignores that file on purpose. npm
+          # then failed setup-node outright ("Some specified paths were not
+          # resolved, unable to cache dependencies") before a single line ran.
 
       - name: Install
         working-directory: frontend
-        run: npm ci
+        # `npm install`, not `npm ci` - same reason: ci refuses to run without a
+        # lockfile.
+        run: npm install --no-audit --no-fund
 
       - name: Build
         working-directory: frontend
