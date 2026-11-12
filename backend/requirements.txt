@@ -28,6 +28,11 @@ pymongo==4.19.0
 python-dotenv==1.2.4
 pydantic==2.14.1
 email-validator==2.3.0
+# `services/timeseries_predictor.py` and `services/pdf_rag.py` both `import numpy`.
+# It arrived as a transitive dependency of the embedding stack that was removed
+# from the demo path, so it has to be listed now or the image dies at import:
+# `ModuleNotFoundError: No module named 'numpy'` before /healthz exists.
+numpy==2.5.3
 
 # --- open-weight model transport (Ollama is OpenAI-compatible)
 langchain==1.4.7
@@ -45,6 +50,13 @@ Pillow==12.3.0
 
 # --- storage (optional cloud bucket; local disk is the default)
 boto3==1.43.118
+
+# --- speech (optional at runtime, but the import is not)
+# `services/multilingual_chatbot.py` does `from pydub import AudioSegment` at module
+# scope, and `routes/chatbot.py` imports that at boot — so without pydub the API
+# dies before /healthz can report STT as unavailable. pydub itself is pure Python;
+# it only needs ffmpeg when audio is actually decoded, which stays optional.
+pydub==0.25.1
 
 # --- auth / util
 pyjwt==2.14.0
