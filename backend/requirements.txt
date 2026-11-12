@@ -61,7 +61,7 @@ pydub==0.25.1
 # --- auth / util
 pyjwt==2.14.0
 pwdlib[argon2]==0.3.1
-requests==2.32.3
+requests==2.34.2
 httpx==0.28.1
 websockets==16.1.1
 certifi==2024.6.2
